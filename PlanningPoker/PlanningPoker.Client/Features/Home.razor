@@ -1,0 +1,64 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.SignalR.Client
+
+<PageTitle>Home</PageTitle>
+
+<div class="d-flex justify-center">
+    <Login OnLoginSuccess="OnLogin"></Login>
+</div>
+
+@if (IsConnected && currentUser != null)
+{
+    <div class="d-flex flex-column justify-center">
+        <div class="mt-5">
+            <RoomPicker OnRoomSelection="OnJoinRoom" OnRoomExit="OnExitRoom"></RoomPicker>
+        </div>
+        <div class="mt-5">
+            <PokerRoom @ref="pokerRoom" Name="name" HubConnection="hubConnection"></PokerRoom>
+        </div>
+    </div>
+}
+
+@code{
+    private HubConnection? hubConnection;
+    private AppUser? currentUser = null;
+    private Room? currentRoom = null;
+    private PokerRoom pokerRoom;
+
+    private bool IsConnected => hubConnection?.State == HubConnectionState.Connected;
+
+    private void OnLogin(LoginResult result)
+    {
+        hubConnection = result.HubConnection;
+        currentUser = result.User;
+    }
+
+    private void OnPickRoom(Room room)
+    {
+        currentRoom = room;
+    }
+
+    private async Task OnJoinRoom(Room room)
+    {
+        currentRoom = room;
+        await pokerRoom.JoinRoom(currentRoom);
+    }
+
+    private async Task OnExitRoom()
+    {
+        currentRoom = null;
+        await pokerRoom.ExitRoom();
+    }
+
+
+
+
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+}

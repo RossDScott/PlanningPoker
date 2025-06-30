@@ -1,0 +1,29 @@
+﻿<MudStack Row="true" Wrap="Wrap.Wrap" Justify="Justify.Center">
+    @foreach(var card in cards)
+    {
+        <MudPaper Class="ma-2 py-18 px-auto" Width="8rem" 
+                  Outlined="@(card == CurrentEstimate)"
+                  Elevation="@(card == CurrentEstimate ? 0 : 2)"
+                  @onclick="_ => OnCardClick.InvokeAsync(card)">
+            @if(card == CurrentEstimate)
+            {
+                <MudText Typo="Typo.h4" Color="Color.Primary" Align="Align.Center">@card</MudText>
+            }
+            else
+            {
+                <MudText Typo="Typo.h4" Align="Align.Center">@card</MudText>
+            }
+        </MudPaper>
+    }
+
+</MudStack>
+
+@code {
+    string[] cards = ["1", "2", "3", "5", "8", "13", "20", "?"];
+
+    [Parameter]
+    public EventCallback<string> OnCardClick { get; set; }
+
+    [Parameter]
+    public string? CurrentEstimate { get; set; }
+}

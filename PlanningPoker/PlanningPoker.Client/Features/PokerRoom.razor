@@ -1,0 +1,166 @@
+﻿@using Microsoft.AspNetCore.SignalR.Client
+
+@if (currentRoom != null)
+{
+    <div class="d-flex flex-column justify-center mt-5">
+        <Cards OnCardClick="OnCardVote" CurrentEstimate="@currentEstimate"></Cards>
+
+        <div class="d-flex justify-center mt-5">
+            <div>
+                <MudPaper Width="300px">
+                    <MudTable Items="users" Hover="true" Breakpoint="Breakpoint.Sm">
+                        <HeaderContent>
+                            <MudTh>Name</MudTh>
+                            <MudTh>Estimate</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>@context.Name</MudTd>
+                            <MudTd><span style="height:20px;width:20px">@ShowEstimateDecision(context)</span></MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudPaper>
+            </div>
+
+            <div class="ml-5">
+                <MudCard>
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h5" Align="Align.Center">Estimate Controls</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardActions>
+                        <MudStack Row="true" Justify="Justify.Center">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="SendResetEstimates">Reset Estimates</MudButton>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="SendRevealEstimates">Show Estimates</MudButton>
+                        </MudStack>
+                    </MudCardActions>
+                </MudCard>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    string ShowEstimateDecision(RoomUser user)
+            => showEstimates == true
+            ? user.Estimate ?? ""
+            : user.Estimate == null 
+                ? ""
+                : "...";
+}
+
+@code {
+    private List<RoomUser> users = [];
+    private Room? currentRoom = null;
+    private bool showEstimates = false;
+    private string? currentEstimate = null;
+
+    [Parameter, EditorRequired]
+    public required HubConnection HubConnection { get; set; }
+
+    [Parameter, EditorRequired]
+    public required string Name { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await WireUpHub();
+    }
+
+    public async Task JoinRoom(Room room)
+    {
+        currentRoom = room;
+        await HubConnection.SendAsync("JoinRoom", currentRoom.Id);
+    }
+
+    public async Task ExitRoom()
+    {
+        await HubConnection.SendAsync("ExitRoom", currentRoom!.Id);
+        currentRoom = null;
+    }
+
+    private async Task SendResetEstimates()
+    {
+        await HubConnection.SendAsync("ResetEstimates", currentRoom!.Id);
+    }
+
+    private async Task SendRevealEstimates()
+    {
+        await HubConnection.SendAsync("RevealEstimates", currentRoom!.Id);
+    }
+
+    private async Task WireUpHub()
+    {
+        HubConnection.On<string, string>("JoinRoom", OnJoinRoom);
+        HubConnection.On<string, string>("AnnounceAlreadyInTheRoom", OnAnnounceAlreadyInTheRoom);
+        HubConnection.On<string, string>("SubmitEstimate", OnSubmitEstimate);
+        HubConnection.On<string>("RemoveFromRoom", RemoveFromRoom);
+        HubConnection.On("RevealEstimates", OnRevealEstimates);
+        HubConnection.On("ResetEstimates", OnResetEstimates);
+    }
+
+    private async Task OnJoinRoom(string userName, string userId)
+    {
+        if (users.Any(x => x.Id == userId))
+            return;
+
+        users.Add(new RoomUser(userId, userName));
+        await HubConnection.SendAsync("AnnounceAlreadyInTheRoom", userId);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnAnnounceAlreadyInTheRoom(string userName, string userId)
+    {
+        if (users.Any(x => x.Id == userId))
+            return;
+
+        users.Add(new RoomUser(userId, userName));
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnSubmitEstimate(string userId, string estimate)
+    {
+        var user = users.SingleOrDefault(x => x.Id == userId);
+
+        if (user is null)
+            return;
+
+        user.Estimate = estimate;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnRevealEstimates()
+    {
+        showEstimates = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnResetEstimates()
+    {
+        showEstimates = false;
+        currentEstimate = null;
+        users.ForEach(x => x.Estimate = null);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RemoveFromRoom(string userId)
+    {
+        var user = users.SingleOrDefault(x => x.Id == userId);
+
+        if (user is null)
+            return;
+
+        users.Remove(user);
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnCardVote(string estimate)
+    {
+        if (currentRoom == null)
+            return;
+
+        currentEstimate = estimate;
+
+        await HubConnection.SendAsync("SubmitEstimate", currentRoom.Id, estimate);
+    }
+}

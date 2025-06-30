@@ -1,0 +1,122 @@
+﻿@using Microsoft.AspNetCore.SignalR.Client
+@using Blazored.LocalStorage
+
+@inject ILocalStorageService localStorage
+@inject NavigationManager Navigation
+
+
+<div class="d-flex flex-column justify-center">
+    @if (isLoggedIn)
+    {
+        <div class="d-flex justify-center">
+            <MudCard style="min-width:30rem">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h5" Align="Align.Center">@user.Name</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+            </MudCard>
+        </div>
+    }
+    else if (!isCheckingLocalStorage)
+    {
+        <MudCard style="min-width:30rem">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h5" Align="Align.Center">Please Sign In</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudTextField @bind-Value="user.Name" Label="Your Name" Variant="Variant.Text"></MudTextField>
+                <MudTextField @bind-Value="user.Licence" Label="Licence Key" Variant="Variant.Text"></MudTextField>
+                @if (!string.IsNullOrEmpty(serverMessage))
+                {
+                    <div>
+                        <MudAlert Severity="Severity.Error">@serverMessage</MudAlert>
+                    </div>
+                }
+            </MudCardContent>
+            <MudCardActions>
+                <MudStack Row="true" Justify="Justify.Center" style="width: 100%">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="OnLogin">Login</MudButton>
+                </MudStack>
+            </MudCardActions>
+        </MudCard>
+    }
+
+    @if (isLoading)
+    {
+        <div class="d-flex flex-column justify-center">
+            <MudText Typo="Typo.h4" Align="Align.Center">Checking licence...</MudText>
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" Size="Size.Medium" Class="my-7" />
+        </div>
+    }
+</div>
+
+@code {
+    private AppUser user = new AppUser { Name = "", Licence = "" };
+    private bool isCheckingLocalStorage = true;
+    private bool isLoggedIn = false;
+    private bool isLoading = true;
+    private string? serverMessage = null;
+    private HubConnection? hubConnection = null;
+
+    [Parameter]
+    public EventCallback<LoginResult> OnLoginSuccess { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var existingUser = await localStorage.GetItemAsync<AppUser>("User");
+            isCheckingLocalStorage = false;
+            if (existingUser != null)
+            {
+                user = existingUser;
+                await OnLogin();
+            }
+            else
+            {
+                isLoading = false;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async Task OnLogin()
+    {
+        isLoading = true;
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/planningpoker"), options =>
+            {
+                options.AccessTokenProvider = () => Task.FromResult<string?>(user.Licence);
+            })
+            .Build();
+
+        await hubConnection.StartAsync();
+        hubConnection.On<string>("LoginFailed", OnLoginFailed);
+
+        await hubConnection.InvokeAsync("Login", user.Name);
+
+        await localStorage.SetItemAsync("User", user);
+        await OnLoginSuccess.InvokeAsync(new LoginResult { User = user, HubConnection = hubConnection });
+
+        isLoggedIn = true;
+        isLoading = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnLoginFailed(string message)
+    {
+        isLoggedIn = false;
+        isLoading = false;
+
+        user.Licence = string.Empty;
+        serverMessage = message;
+        await localStorage.SetItemAsync("User", user);
+
+        await InvokeAsync(StateHasChanged);
+    }
+}

@@ -1,0 +1,189 @@
+﻿@using Microsoft.AspNetCore.SignalR.Client
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+
+<MudStack Row="true" Justify="Justify.Center">
+
+    @if (currentStatus == Status.Choose)
+    {
+        <MudCard>
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h5" Align="Align.Center">What would you like to do?</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardActions>
+                <MudStack Row="true" Justify="Justify.Center">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="StartCreateANewRoom">Create a Room</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="StartJoinANewRoom">Join a new Room</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="StartJoinExistingRoom">Join an existing Room</MudButton>
+                </MudStack>
+            </MudCardActions>
+        </MudCard>
+    }
+
+    @if (currentRoom != null && currentStatus == Status.InARoom)
+    {
+        <MudCard>
+            <MudCardContent>
+                <MudText>@currentRoom.Name</MudText>
+                <MudText Typo="Typo.body2">@currentRoom.Id</MudText>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="ChangeRoom">Change Room</MudButton>
+            </MudCardActions>
+        </MudCard>
+    }
+
+    @if (currentStatus == Status.PickARoom)
+    {
+        @foreach (var room in rooms)
+        {
+            <MudCard @onclick="_ => SelectRoom(room)">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">@room.Name</MudText>
+                    </CardHeaderContent>
+                    <CardHeaderActions>
+                        <MudIconButton Icon="@Icons.Material.Sharp.DeleteForever" Color="Color.Default" onclick="_ => DeleteRoom(room)" />
+                    </CardHeaderActions>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudText Typo="Typo.body2">@room.Id</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudStack Row="true" Justify="Justify.Center" style="width: 100%">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" onclick="_ => SelectRoom(room)">Join</MudButton>
+                    </MudStack>
+                </MudCardActions>
+            </MudCard>
+        }
+    }
+
+    @if (currentStatus == Status.CreateARoom && newRoom != null)
+    {
+        <MudCard style="min-width:30rem">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h5" Align="Align.Center">Create New Room</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudTextField @bind-Value="newRoom.Id" Label="Room Id" ReadOnly="true" Variant="Variant.Text"></MudTextField>
+                <MudTextField @bind-Value="newRoom.Name" Label="Room Name" Variant="Variant.Text"></MudTextField>
+            </MudCardContent>
+            <MudCardActions>
+                <MudStack Row="true" Justify="Justify.Center" style="width: 100%">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" onclick="ConfirmCreateANewRoom">Create</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" onclick="_ => currentStatus = Status.Choose">Cancel</MudButton>
+                </MudStack>
+            </MudCardActions>
+        </MudCard>
+    }
+
+    @if (currentStatus == Status.JoinAnExistingRoom)
+    {
+        <MudCard style="min-width:30rem">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h5" Align="Align.Center">Join A New Room</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudTextField @bind-Value="newRoom.Id" Label="Room Id" Variant="Variant.Text"></MudTextField>
+                <MudTextField @bind-Value="newRoom.Name" Label="Room Name" Variant="Variant.Text"></MudTextField>
+            </MudCardContent>
+            <MudCardActions>
+                <MudStack Row="true" Justify="Justify.Center" style="width: 100%">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" onclick="ConfirmJoinANewRoom">Join</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" onclick="_ => currentStatus = Status.Choose">Cancel</MudButton>
+                </MudStack>
+            </MudCardActions>
+        </MudCard>
+    }
+</MudStack>
+
+@code {
+    private enum Status
+    {
+        Choose,
+        PickARoom,
+        CreateARoom,
+        JoinAnExistingRoom,
+        InARoom
+    }
+
+    private Status currentStatus = Status.Choose;
+
+    private Room? currentRoom = null;
+    private Room? newRoom = null;
+    private string roomIdToJoin = "";
+    private List<Room> rooms = [];
+
+    [Parameter]
+    public EventCallback<Room> OnRoomSelection { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnJoinExistingRoom { get; set; }
+
+    [Parameter]
+    public EventCallback OnRoomExit { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        rooms = (await LocalStorage.GetItemAsync<List<Room>>("rooms")) ?? [];
+
+        if (rooms.Count == 1)
+            await SelectRoom(rooms[0]);
+    }
+
+    private async Task ChangeRoom()
+    {
+        currentRoom = null;
+        currentStatus = Status.Choose;
+        await OnRoomExit.InvokeAsync();
+    }
+
+    private async Task StartCreateANewRoom()
+    {
+        newRoom = new Room { Id = Guid.NewGuid().ToString(), Name = "" };
+        currentStatus = Status.CreateARoom;
+    }
+    private async Task ConfirmCreateANewRoom()
+    {
+
+        rooms.Add(newRoom!);
+        await LocalStorage.SetItemAsync("rooms", rooms);
+        await SelectRoom(newRoom!);
+    }
+
+    private void StartJoinANewRoom()
+    {
+        newRoom = new Room { Id = "", Name = "" };
+        currentStatus = Status.JoinAnExistingRoom;
+    }
+    private async Task ConfirmJoinANewRoom()
+    {
+        rooms.Add(newRoom!);
+        await LocalStorage.SetItemAsync("rooms", rooms);
+        await SelectRoom(newRoom!);
+    }
+
+    private async Task StartJoinExistingRoom()
+    {
+        currentStatus = Status.PickARoom;
+    }
+
+    private async Task SelectRoom(Room room)
+    {
+        currentRoom = room;
+        newRoom = null;
+        currentStatus = Status.InARoom;
+        await OnRoomSelection.InvokeAsync(room);
+    }
+
+    private async Task DeleteRoom(Room room)
+    {
+        rooms.Remove(room);
+        await LocalStorage.SetItemAsync("rooms", rooms);
+    }
+}
