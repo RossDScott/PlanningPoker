@@ -1,5 +1,6 @@
 ﻿@using Microsoft.AspNetCore.SignalR.Client
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject IJSRuntime JSRuntime
 
 <MudStack Row="true" Justify="Justify.Center">
 
@@ -15,7 +16,13 @@
                 <MudStack Row="true" Justify="Justify.Center">
                     <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="StartCreateANewRoom">Create a Room</MudButton>
                     <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="StartJoinANewRoom">Join a new Room</MudButton>
-                    <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="StartJoinExistingRoom">Join an existing Room</MudButton>
+                    @if (rooms.Count > 0)
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Default" 
+                        OnClick="StartJoinExistingRoom"
+                        Disabled="rooms.Count == 0">Join an existing Room</MudButton>
+                    }
+
                 </MudStack>
             </MudCardActions>
         </MudCard>
@@ -26,37 +33,55 @@
         <MudCard>
             <MudCardContent>
                 <MudText>@currentRoom.Name</MudText>
-                <MudText Typo="Typo.body2">@currentRoom.Id</MudText>
+                <MudStack Row="true" Justify="Justify.Center" Align="AlignItems.Center" style="width: 100%">
+                    <MudText Typo="Typo.body2">@currentRoom.Id</MudText>
+                    <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" aria-label="Copy" OnClick="CopyRoomId" />
+                </MudStack>
             </MudCardContent>
             <MudCardActions>
-                <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="ChangeRoom">Change Room</MudButton>
+                <MudStack Row="true" Justify="Justify.Center" style="width: 100%">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="ChangeRoom">Change Room</MudButton>
+                </MudStack>
             </MudCardActions>
         </MudCard>
     }
 
     @if (currentStatus == Status.PickARoom)
     {
-        @foreach (var room in rooms)
-        {
-            <MudCard @onclick="_ => SelectRoom(room)">
-                <MudCardHeader>
-                    <CardHeaderContent>
-                        <MudText Typo="Typo.h6">@room.Name</MudText>
-                    </CardHeaderContent>
-                    <CardHeaderActions>
-                        <MudIconButton Icon="@Icons.Material.Sharp.DeleteForever" Color="Color.Default" onclick="_ => DeleteRoom(room)" />
-                    </CardHeaderActions>
-                </MudCardHeader>
-                <MudCardContent>
-                    <MudText Typo="Typo.body2">@room.Id</MudText>
-                </MudCardContent>
-                <MudCardActions>
-                    <MudStack Row="true" Justify="Justify.Center" style="width: 100%">
-                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" onclick="_ => SelectRoom(room)">Join</MudButton>
-                    </MudStack>
-                </MudCardActions>
-            </MudCard>
-        }
+        <MudStack>
+            <MudStack Row="true" Justify="Justify.Center">
+                @foreach (var room in rooms)
+                {
+                    <MudCard @onclick="_ => SelectRoom(room)">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">@room.Name</MudText>
+                            </CardHeaderContent>
+                            <CardHeaderActions>
+                                <MudIconButton Icon="@Icons.Material.Sharp.DeleteForever" Color="Color.Default" onclick="_ => DeleteRoom(room)" />
+                            </CardHeaderActions>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudText Typo="Typo.body2">@room.Id</MudText>
+                        </MudCardContent>
+                        <MudCardActions>
+                            <MudStack Row="true" Justify="Justify.Center" style="width: 100%">
+                                <MudButton Variant="Variant.Outlined" OnClick="_ => SelectRoom(room)">Join</MudButton>
+                            </MudStack>
+                        </MudCardActions>
+                    </MudCard>
+                }
+            </MudStack>
+            <div>
+                <MudCard style="min-width:10rem">
+                    <MudCardActions>
+                        <MudStack Row="true" Justify="Justify.Center" style="width: 100%">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" onclick="_ => currentStatus = Status.Choose">Back</MudButton>
+                        </MudStack>
+                    </MudCardActions>
+                </MudCard>
+            </div>
+        </MudStack>
     }
 
     @if (currentStatus == Status.CreateARoom && newRoom != null)
@@ -150,10 +175,12 @@
     }
     private async Task ConfirmCreateANewRoom()
     {
+        if (newRoom == null)
+            return;
 
-        rooms.Add(newRoom!);
+        rooms.Add(newRoom);
         await LocalStorage.SetItemAsync("rooms", rooms);
-        await SelectRoom(newRoom!);
+        await SelectRoom(newRoom);
     }
 
     private void StartJoinANewRoom()
@@ -185,5 +212,13 @@
     {
         rooms.Remove(room);
         await LocalStorage.SetItemAsync("rooms", rooms);
+    }
+
+    private async Task CopyRoomId()
+    {
+        if (currentRoom == null)
+            return;
+
+        await JSRuntime.InvokeVoidAsync("clipboardCopy.copyText", currentRoom.Id);
     }
 }

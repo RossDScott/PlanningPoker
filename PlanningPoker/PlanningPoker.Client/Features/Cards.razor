@@ -1,7 +1,7 @@
 ﻿<MudStack Row="true" Wrap="Wrap.Wrap" Justify="Justify.Center">
     @foreach(var card in cards)
     {
-        <MudPaper Class="ma-2 py-18 px-auto" Width="8rem" 
+        <MudPaper Class="ma-2 py-14 px-auto" Width="7rem" 
                   Outlined="@(card == CurrentEstimate)"
                   Elevation="@(card == CurrentEstimate ? 0 : 2)"
                   @onclick="_ => OnCardClick.InvokeAsync(card)">

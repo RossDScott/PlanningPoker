@@ -10,12 +10,16 @@
                 <MudPaper Width="300px">
                     <MudTable Items="users" Hover="true" Breakpoint="Breakpoint.Sm">
                         <HeaderContent>
-                            <MudTh>Name</MudTh>
-                            <MudTh>Estimate</MudTh>
+                            <MudTh><MudText Typo="Typo.h6">Name</MudText></MudTh>
+                            <MudTh><MudText Typo="Typo.h6">Estimate</MudText></MudTh>
                         </HeaderContent>
                         <RowTemplate>
-                            <MudTd>@context.Name</MudTd>
-                            <MudTd><span style="height:20px;width:20px">@ShowEstimateDecision(context)</span></MudTd>
+                            <MudTd><MudText Typo="Typo.body1">@context.Name</MudText></MudTd>
+                            <MudTd>
+                                <MudText Typo="Typo.body1">
+                                    @ShowEstimateDecision(context)
+                                </MudText>
+                            </MudTd>
                         </RowTemplate>
                     </MudTable>
                 </MudPaper>
