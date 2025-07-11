@@ -33,10 +33,11 @@
         <MudCard>
             <MudCardContent>
                 <MudText>@currentRoom.Name</MudText>
-                <MudStack Row="true" Justify="Justify.Center" Align="AlignItems.Center" style="width: 100%">
+                <MudStack Row="true" Justify="Justify.FlexStart" Align="AlignItems.Center" style="width: 100%">
                     <MudText Typo="Typo.body2">@currentRoom.Id</MudText>
                     <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" aria-label="Copy" OnClick="CopyRoomId" />
                 </MudStack>
+                <MudSwitch Value="currentRoom.Observing" ValueChanged="(bool value) => ToggleObservingOnly(value)" Class="ma-n3" Label="Observing Only" LabelPlacement="Placement.End" />
             </MudCardContent>
             <MudCardActions>
                 <MudStack Row="true" Justify="Justify.Center" style="width: 100%">
@@ -198,6 +199,17 @@
     private async Task StartJoinExistingRoom()
     {
         currentStatus = Status.PickARoom;
+    }
+
+    private async Task ToggleObservingOnly(bool value)
+    {
+        if (currentRoom == null)
+            return;
+
+        currentRoom.Observing = value;
+
+        await LocalStorage.SetItemAsync("rooms", rooms);
+        await SelectRoom(currentRoom);
     }
 
     private async Task SelectRoom(Room room)

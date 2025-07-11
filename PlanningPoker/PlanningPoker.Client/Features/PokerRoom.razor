@@ -77,7 +77,7 @@
     }
 
     private List<RoomUser> voters => users.Where(x => !x.Observing).ToList();
-    private IEnumerable<RoomUser> observers => users.Where(x => x.Observing).ToArray();
+    private IEnumerable<string> observers => users.Where(x => x.Observing).Select(x => x.Name).ToArray();
     private string observersCSV => string.Join(", ", observers)
                                          .Trim();
 
