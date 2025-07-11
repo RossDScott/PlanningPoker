@@ -46,22 +46,22 @@ public class PlanningPokerHub : Hub
         return Task.CompletedTask;
     }
 
-    public async Task JoinRoom(string roomId)
+    public async Task JoinRoom(string roomId, bool observing)
     {
         var userName = GetUserName();
 
         await Groups.AddToGroupAsync(Context.ConnectionId, roomId.ToString());
-        await Clients.Group(roomId).SendAsync("JoinRoom", userName, Context.ConnectionId);
+        await Clients.Group(roomId).SendAsync("JoinRoom", Context.ConnectionId, userName, observing);
     }
 
-    public async Task AnnounceAlreadyInTheRoom(string forClient)
+    public async Task AnnounceAlreadyInTheRoom(string forClient, bool observing)
     {
         if (forClient == Context.ConnectionId)
             return;
 
         var userName = GetUserName();
 
-        await Clients.Client(forClient).SendAsync("AnnounceAlreadyInTheRoom", userName, Context.ConnectionId);
+        await Clients.Client(forClient).SendAsync("AnnounceAlreadyInTheRoom", Context.ConnectionId, userName, observing);
     }
 
     public async Task SubmitEstimate(string roomId, string estimate)

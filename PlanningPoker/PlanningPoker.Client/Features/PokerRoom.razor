@@ -8,7 +8,7 @@
         <div class="d-flex justify-center mt-5">
             <div>
                 <MudPaper Width="300px">
-                    <MudTable Items="users" Hover="true" Breakpoint="Breakpoint.Sm">
+                    <MudTable Items="voters" Hover="true" Breakpoint="Breakpoint.Sm">
                         <HeaderContent>
                             <MudTh><MudText Typo="Typo.h6">Name</MudText></MudTh>
                             <MudTh><MudText Typo="Typo.h6">Estimate</MudText></MudTh>
@@ -23,6 +23,12 @@
                         </RowTemplate>
                     </MudTable>
                 </MudPaper>
+                @if (observers.Any())
+                {
+                    <MudPaper Class="mt-3 pa-3">
+                        <MudText Typo="Typo.h6">Observers: @observersCSV</MudText>
+                    </MudPaper>
+                }
             </div>
 
             <div class="ml-5">
@@ -70,10 +76,15 @@
         await WireUpHub();
     }
 
+    private List<RoomUser> voters => users.Where(x => !x.Observing).ToList();
+    private IEnumerable<RoomUser> observers => users.Where(x => x.Observing).ToArray();
+    private string observersCSV => string.Join(", ", observers)
+                                         .Trim();
+
     public async Task JoinRoom(Room room)
     {
         currentRoom = room;
-        await HubConnection.SendAsync("JoinRoom", currentRoom.Id);
+        await HubConnection.SendAsync("JoinRoom", currentRoom.Id, room.Observing);
     }
 
     public async Task ExitRoom()
@@ -94,30 +105,30 @@
 
     private async Task WireUpHub()
     {
-        HubConnection.On<string, string>("JoinRoom", OnJoinRoom);
-        HubConnection.On<string, string>("AnnounceAlreadyInTheRoom", OnAnnounceAlreadyInTheRoom);
+        HubConnection.On<string, string, bool>("JoinRoom", OnJoinRoom);
+        HubConnection.On<string, string, bool>("AnnounceAlreadyInTheRoom", OnAnnounceAlreadyInTheRoom);
         HubConnection.On<string, string>("SubmitEstimate", OnSubmitEstimate);
         HubConnection.On<string>("RemoveFromRoom", RemoveFromRoom);
         HubConnection.On("RevealEstimates", OnRevealEstimates);
         HubConnection.On("ResetEstimates", OnResetEstimates);
     }
 
-    private async Task OnJoinRoom(string userName, string userId)
+    private async Task OnJoinRoom(string userId, string userName, bool observing)
     {
         if (users.Any(x => x.Id == userId))
             return;
 
-        users.Add(new RoomUser(userId, userName));
-        await HubConnection.SendAsync("AnnounceAlreadyInTheRoom", userId);
+        users.Add(new RoomUser(userId, userName, observing));
+        await HubConnection.SendAsync("AnnounceAlreadyInTheRoom", userId, currentRoom!.Observing);
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task OnAnnounceAlreadyInTheRoom(string userName, string userId)
+    private async Task OnAnnounceAlreadyInTheRoom(string userId, string userName, bool observing)
     {
         if (users.Any(x => x.Id == userId))
             return;
 
-        users.Add(new RoomUser(userId, userName));
+        users.Add(new RoomUser(userId, userName, observing));
         await InvokeAsync(StateHasChanged);
     }
 
