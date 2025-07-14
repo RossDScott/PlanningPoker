@@ -20,7 +20,7 @@ public class PlanningPokerHub : Hub
 
         if (string.IsNullOrEmpty(accessToken) || !accessToken.Contains(licenceKey))
         {
-            Clients.Caller.SendAsync("LoginFailed", $"Invalid licence key. Please log in with a valid licence key. {accessToken}  xx  {licenceKey}");
+            Clients.Caller.SendAsync("LoginFailed", "Invalid licence key. Please log in with a valid licence key.");
 
             // Reject the connection
             Context.Abort();
