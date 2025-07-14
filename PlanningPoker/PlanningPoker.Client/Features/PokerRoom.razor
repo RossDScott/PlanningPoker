@@ -3,8 +3,11 @@
 @if (currentRoom != null)
 {
     <div class="d-flex flex-column justify-center">
-        <Cards OnCardClick="OnCardVote" CurrentEstimate="@currentEstimate"></Cards>
-
+        @if (!currentRoom.Observing)
+        {
+            <Cards OnCardClick="OnCardVote" CurrentEstimate="@currentEstimate"></Cards>
+        }
+        
         <div class="d-flex justify-center mt-5">
             <div>
                 <MudPaper Width="300px">
@@ -115,10 +118,17 @@
 
     private async Task OnJoinRoom(string userId, string userName, bool observing)
     {
-        if (users.Any(x => x.Id == userId))
-            return;
+        var existingUser = users.SingleOrDefault(x => x.Id == userId);
 
-        users.Add(new RoomUser(userId, userName, observing));
+        if(existingUser != null)
+        {
+            existingUser.Observing = observing;
+        }
+        else
+        {
+            users.Add(new RoomUser(userId, userName, observing));
+        }
+
         await HubConnection.SendAsync("AnnounceAlreadyInTheRoom", userId, currentRoom!.Observing);
         await InvokeAsync(StateHasChanged);
     }
