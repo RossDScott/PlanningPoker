@@ -15,8 +15,9 @@ public class PlanningPokerHub : Hub
     {
         var httpContext = Context.GetHttpContext();
 
-        var accessToken = httpContext.Request.Query["access_token"].ToString() ??
-            httpContext.Request.Headers["Authorization"].ToString();
+        string accessToken = httpContext.Request.Query.ContainsKey["access_token"]
+                                ? httpContext.Request.Query["access_token"].ToString()
+                                : httpContext.Request.Headers["Authorization"].ToString();
 
         if (string.IsNullOrEmpty(accessToken) || !accessToken.Contains(licenceKey))
         {
