@@ -1,5 +1,4 @@
 using Blazored.LocalStorage;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.ResponseCompression;
 using MudBlazor.Services;
 using PlanningPoker.Components;
@@ -21,28 +20,28 @@ builder.Services.AddResponseCompression(opts =>
 builder.Services.AddRazorComponents()
     .AddInteractiveWebAssemblyComponents();
 
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-}).AddJwtBearer(options =>
-{
-    options.Authority = JwtBearerDefaults.AuthenticationScheme;
-    options.RequireHttpsMetadata = false;
+//builder.Services.AddAuthentication(options =>
+//{
+//    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+//    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+//}).AddJwtBearer(options =>
+//{
+//    options.Authority = JwtBearerDefaults.AuthenticationScheme;
+//    options.RequireHttpsMetadata = false;
 
-    options.Events = new JwtBearerEvents
-    {
-        OnMessageReceived = context =>
-        {
-            var accessToken = context.Request.Query["access_token"];
+//    options.Events = new JwtBearerEvents
+//    {
+//        OnMessageReceived = context =>
+//        {
+//            var accessToken = context.Request.Query["access_token"];
 
-            if (!string.IsNullOrEmpty(accessToken))
-                context.Token = accessToken;
+//            if (!string.IsNullOrEmpty(accessToken))
+//                context.Token = accessToken;
 
-            return Task.CompletedTask;
-        }
-    };
-});
+//            return Task.CompletedTask;
+//        }
+//    };
+//});
 
 var app = builder.Build();
 
