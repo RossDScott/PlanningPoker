@@ -20,29 +20,6 @@ builder.Services.AddResponseCompression(opts =>
 builder.Services.AddRazorComponents()
     .AddInteractiveWebAssemblyComponents();
 
-//builder.Services.AddAuthentication(options =>
-//{
-//    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-//    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-//}).AddJwtBearer(options =>
-//{
-//    options.Authority = JwtBearerDefaults.AuthenticationScheme;
-//    options.RequireHttpsMetadata = false;
-
-//    options.Events = new JwtBearerEvents
-//    {
-//        OnMessageReceived = context =>
-//        {
-//            var accessToken = context.Request.Query["access_token"];
-
-//            if (!string.IsNullOrEmpty(accessToken))
-//                context.Token = accessToken;
-
-//            return Task.CompletedTask;
-//        }
-//    };
-//});
-
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

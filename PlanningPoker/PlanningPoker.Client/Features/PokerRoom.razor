@@ -7,7 +7,7 @@
         {
             <Cards OnCardClick="OnCardVote" CurrentEstimate="@currentEstimate"></Cards>
         }
-        
+
         <div class="d-flex justify-center mt-5">
             <div>
                 <MudPaper Width="300px">
@@ -19,9 +19,7 @@
                         <RowTemplate>
                             <MudTd><MudText Typo="Typo.body1">@context.Name</MudText></MudTd>
                             <MudTd>
-                                <MudText Typo="Typo.body1">
-                                    @ShowEstimateDecision(context)
-                                </MudText>
+                                @showEstimate(context)
                             </MudTd>
                         </RowTemplate>
                     </MudTable>
@@ -54,12 +52,16 @@
 }
 
 @code {
-    string ShowEstimateDecision(RoomUser user)
-            => showEstimates == true
-            ? user.Estimate ?? ""
-            : user.Estimate == null 
-                ? ""
-                : "...";
+    RenderFragment showEstimate(RoomUser user) => (showEstimates, user.Estimate) switch
+    {
+        (_, null)      => @<MudChip T="string" Variant="Variant.Outlined" Color="Color.Primary" Class="ma-0" Style="visibility: hidden"></MudChip>,
+        (true, _)  => @<MudChip T="string" Variant="Variant.Outlined" Color="Color.Primary" Class="ma-0">
+                                    <span style="min-width: 1.2em; text-align: center">@user.Estimate</span>
+                                   </MudChip>,
+        (false, _) => @<MudChip T="string" Variant="Variant.Outlined" Color="Color.Default" Class="ma-0">
+                                      <span style="min-width: 1.2em; text-align: center"></span>
+                                   </MudChip>
+    };
 }
 
 @code {
