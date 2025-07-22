@@ -71,6 +71,11 @@ public class PlanningPokerHub : Hub
 
     public async Task SubmitEstimate(string roomId, string estimate)
     {
+        if (!Client.Features.Cards.AvailableCards.Contains(estimate))
+        {
+            throw new ArgumentException($"Invalid estimate provided. Available cards: {string.Join(", ", Client.Features.Cards.AvailableCards)}");
+        }
+
         await Clients.Group(roomId).SendAsync("SubmitEstimate", Context.ConnectionId, estimate);
     }
 

@@ -146,6 +146,9 @@
 
     private async Task OnSubmitEstimate(string userId, string estimate)
     {
+        if (showEstimates)
+            return;
+
         var user = users.SingleOrDefault(x => x.Id == userId);
 
         if (user is null)
@@ -183,7 +186,7 @@
 
     private async Task OnCardVote(string estimate)
     {
-        if (currentRoom == null)
+        if (currentRoom == null || showEstimates)
             return;
 
         currentEstimate = estimate;
