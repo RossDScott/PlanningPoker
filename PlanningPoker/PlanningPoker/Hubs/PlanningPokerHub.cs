@@ -37,15 +37,14 @@ public class PlanningPokerHub : Hub
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        await Clients.All.SendAsync("RemoveFromRoom", Context.ConnectionId);
+        if (Context.Items.TryGetValue("UserId", out var userId))
+            await Clients.All.SendAsync("RemoveFromRoom", userId!.ToString());
         await base.OnDisconnectedAsync(exception);
     }
 
-    public Task Login(string username)
+    public Task Login(string userId, string username)
     {
-        var httpContext = Context.GetHttpContext();
-        var accessToken = httpContext.Request.Query["access_token"].ToString();
-
+        Context.Items.TryAdd("UserId", userId);
         Context.Items.TryAdd("UserName", username);
 
         return Task.CompletedTask;
@@ -56,17 +55,17 @@ public class PlanningPokerHub : Hub
         var userName = GetUserName();
 
         await Groups.AddToGroupAsync(Context.ConnectionId, roomId.ToString());
-        await Clients.Group(roomId).SendAsync("JoinRoom", Context.ConnectionId, userName, observing);
+        await Clients.Group(roomId).SendAsync("JoinRoom", GetUserId(), userName, observing);
     }
 
-    public async Task AnnounceAlreadyInTheRoom(string forClient, bool observing)
+    public async Task AnnounceAlreadyInTheRoom(string forClient, bool observing, string? estimate, bool showEstimates)
     {
-        if (forClient == Context.ConnectionId)
+        if (forClient == GetUserId())
             return;
 
         var userName = GetUserName();
 
-        await Clients.Client(forClient).SendAsync("AnnounceAlreadyInTheRoom", Context.ConnectionId, userName, observing);
+        await Clients.Client(forClient).SendAsync("AnnounceAlreadyInTheRoom", GetUserId(), userName, observing, estimate, showEstimates);
     }
 
     public async Task SubmitEstimate(string roomId, string estimate)
@@ -76,7 +75,7 @@ public class PlanningPokerHub : Hub
             throw new ArgumentException($"Invalid estimate provided. Available cards: {string.Join(", ", Client.Features.Cards.AvailableCards)}");
         }
 
-        await Clients.Group(roomId).SendAsync("SubmitEstimate", Context.ConnectionId, estimate);
+        await Clients.Group(roomId).SendAsync("SubmitEstimate", GetUserId(), estimate);
     }
 
     public async Task RevealEstimates(string roomId)
@@ -89,10 +88,18 @@ public class PlanningPokerHub : Hub
         await Clients.Group(roomId).SendAsync("ResetEstimates");
     }
 
+    private string GetUserId()
+    {
+        if (Context.Items.TryGetValue("UserId", out var userId))
+            return userId!.ToString()!;
+
+        throw new InvalidProgramException("UserId is missing");
+    }
+
     private string GetUserName()
     {
         if (Context.Items.TryGetValue("UserName", out var userName))
-            return userName.ToString();
+            return userName!.ToString()!;
 
         throw new InvalidProgramException("Username is missing");
     }

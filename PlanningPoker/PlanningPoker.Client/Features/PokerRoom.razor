@@ -1,4 +1,5 @@
 ﻿@using Microsoft.AspNetCore.SignalR.Client
+@inject IJSRuntime JS
 
 @if (currentRoom != null)
 {
@@ -90,11 +91,19 @@
     {
         currentRoom = room;
         await HubConnection.SendAsync("JoinRoom", currentRoom.Id, room.Observing);
+
+        var storedEstimate = await JS.InvokeAsync<string?>("sessionStorage.getItem", "currentEstimate");
+        if (!string.IsNullOrEmpty(storedEstimate))
+        {
+            currentEstimate = storedEstimate;
+            await HubConnection.SendAsync("SubmitEstimate", currentRoom.Id, storedEstimate);
+        }
     }
 
     public async Task ExitRoom()
     {
         await HubConnection.SendAsync("ExitRoom", currentRoom!.Id);
+        await JS.InvokeVoidAsync("sessionStorage.removeItem", "currentEstimate");
         currentRoom = null;
     }
 
@@ -111,7 +120,7 @@
     private async Task WireUpHub()
     {
         HubConnection.On<string, string, bool>("JoinRoom", OnJoinRoom);
-        HubConnection.On<string, string, bool>("AnnounceAlreadyInTheRoom", OnAnnounceAlreadyInTheRoom);
+        HubConnection.On<string, string, bool, string?, bool>("AnnounceAlreadyInTheRoom", OnAnnounceAlreadyInTheRoom);
         HubConnection.On<string, string>("SubmitEstimate", OnSubmitEstimate);
         HubConnection.On<string>("RemoveFromRoom", RemoveFromRoom);
         HubConnection.On("RevealEstimates", OnRevealEstimates);
@@ -131,16 +140,29 @@
             users.Add(new RoomUser(userId, userName, observing));
         }
 
-        await HubConnection.SendAsync("AnnounceAlreadyInTheRoom", userId, currentRoom!.Observing);
+        await HubConnection.SendAsync("AnnounceAlreadyInTheRoom", userId, currentRoom!.Observing, currentEstimate, showEstimates);
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task OnAnnounceAlreadyInTheRoom(string userId, string userName, bool observing)
+    private async Task OnAnnounceAlreadyInTheRoom(string userId, string userName, bool observing, string? estimate, bool revealed)
     {
-        if (users.Any(x => x.Id == userId))
-            return;
+        var existingUser = users.SingleOrDefault(x => x.Id == userId);
+        if (existingUser == null)
+        {
+            existingUser = new RoomUser(userId, userName, observing);
+            users.Add(existingUser);
+        }
+        else
+        {
+            existingUser.Observing = observing;
+        }
 
-        users.Add(new RoomUser(userId, userName, observing));
+        if (estimate != null)
+            existingUser.Estimate = estimate;
+
+        if (revealed)
+            showEstimates = true;
+
         await InvokeAsync(StateHasChanged);
     }
 
@@ -168,6 +190,7 @@
     {
         showEstimates = false;
         currentEstimate = null;
+        await JS.InvokeVoidAsync("sessionStorage.removeItem", "currentEstimate");
         users.ForEach(x => x.Estimate = null);
         await InvokeAsync(StateHasChanged);
     }
@@ -190,7 +213,7 @@
             return;
 
         currentEstimate = estimate;
-
+        await JS.InvokeVoidAsync("sessionStorage.setItem", "currentEstimate", estimate);
         await HubConnection.SendAsync("SubmitEstimate", currentRoom.Id, estimate);
     }
 }
