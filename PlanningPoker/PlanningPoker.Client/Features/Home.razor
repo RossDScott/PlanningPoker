@@ -7,7 +7,7 @@
     <Login OnLoginSuccess="OnLogin"></Login>
 </div>
 
-@if (IsConnected && currentUser != null)
+@if (currentUser != null)
 {
     <div class="d-flex flex-column justify-center">
         <div class="mt-5">
@@ -25,12 +25,18 @@
     private Room? currentRoom = null;
     private PokerRoom pokerRoom;
 
-    private bool IsConnected => hubConnection?.State == HubConnectionState.Connected;
-
     private void OnLogin(LoginResult result)
     {
         hubConnection = result.HubConnection;
         currentUser = result.User;
+
+        hubConnection.Reconnected += async _ =>
+        {
+            await hubConnection.InvokeAsync("Login", currentUser.Id, currentUser.Name);
+            if (currentRoom != null)
+                await pokerRoom.JoinRoom(currentRoom);
+            await InvokeAsync(StateHasChanged);
+        };
     }
 
     private void OnPickRoom(Room room)
