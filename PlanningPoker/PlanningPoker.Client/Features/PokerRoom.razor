@@ -1,4 +1,5 @@
 ﻿@using Microsoft.AspNetCore.SignalR.Client
+@inject IJSRuntime JS
 
 @if (currentRoom != null)
 {
@@ -88,11 +89,19 @@
     {
         currentRoom = room;
         await HubConnection.SendAsync("JoinRoom", currentRoom.Id, room.Observing);
+
+        var storedEstimate = await JS.InvokeAsync<string?>("sessionStorage.getItem", "currentEstimate");
+        if (!string.IsNullOrEmpty(storedEstimate))
+        {
+            currentEstimate = storedEstimate;
+            await HubConnection.SendAsync("SubmitEstimate", currentRoom.Id, storedEstimate);
+        }
     }
 
     public async Task ExitRoom()
     {
         await HubConnection.SendAsync("ExitRoom", currentRoom!.Id);
+        await JS.InvokeVoidAsync("sessionStorage.removeItem", "currentEstimate");
         currentRoom = null;
     }
 
@@ -176,6 +185,7 @@
     {
         showEstimates = false;
         currentEstimate = null;
+        await JS.InvokeVoidAsync("sessionStorage.removeItem", "currentEstimate");
         users.ForEach(x => x.Estimate = null);
         await InvokeAsync(StateHasChanged);
     }
@@ -198,7 +208,7 @@
             return;
 
         currentEstimate = estimate;
-
+        await JS.InvokeVoidAsync("sessionStorage.setItem", "currentEstimate", estimate);
         await HubConnection.SendAsync("SubmitEstimate", currentRoom.Id, estimate);
     }
 }
