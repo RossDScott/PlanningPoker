@@ -14,13 +14,18 @@ public class PlanningPokerHub : Hub
     public override Task OnConnectedAsync()
     {
         var httpContext = Context.GetHttpContext();
-        var accessToken = httpContext.Request.Query["access_token"].ToString();
 
-        var x = httpContext.Request.Path.StartsWithSegments("/login");
+        string accessToken = httpContext.Request.Query.ContainsKey("access_token")
+                                ? httpContext.Request.Query["access_token"].ToString()
+                                : httpContext.Request.Headers["Authorization"].ToString();
 
         if (string.IsNullOrEmpty(accessToken) || !accessToken.Contains(licenceKey))
         {
-            Clients.Caller.SendAsync("LoginFailed", "Invalid licence key. Please log in with a valid licence key.");
+            var errorMessage = string.IsNullOrEmpty(accessToken)
+                ? "No licence key provided. Please log in with a valid licence key."
+                : "Invalid licence key provided. Please log in with a valid licence key.";
+
+            Clients.Caller.SendAsync("LoginFailed", errorMessage);
 
             // Reject the connection
             Context.Abort();
@@ -65,6 +70,11 @@ public class PlanningPokerHub : Hub
 
     public async Task SubmitEstimate(string roomId, string estimate)
     {
+        if (!Client.Features.Cards.AvailableCards.Contains(estimate))
+        {
+            throw new ArgumentException($"Invalid estimate provided. Available cards: {string.Join(", ", Client.Features.Cards.AvailableCards)}");
+        }
+
         await Clients.Group(roomId).SendAsync("SubmitEstimate", GetUserId(), estimate);
     }
 
