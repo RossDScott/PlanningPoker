@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xargs grep -l \"ExitRoom\\\\|RemoveFromRoom\")"
+      "Bash(xargs grep -l \"ExitRoom\\\\|RemoveFromRoom\")",
+      "WebSearch"
     ]
   }
 }
