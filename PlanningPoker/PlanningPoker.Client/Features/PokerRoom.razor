@@ -109,7 +109,7 @@
     private async Task WireUpHub()
     {
         HubConnection.On<string, string, bool>("JoinRoom", OnJoinRoom);
-        HubConnection.On<string, string, bool>("AnnounceAlreadyInTheRoom", OnAnnounceAlreadyInTheRoom);
+        HubConnection.On<string, string, bool, string?, bool>("AnnounceAlreadyInTheRoom", OnAnnounceAlreadyInTheRoom);
         HubConnection.On<string, string>("SubmitEstimate", OnSubmitEstimate);
         HubConnection.On<string>("RemoveFromRoom", RemoveFromRoom);
         HubConnection.On("RevealEstimates", OnRevealEstimates);
@@ -129,16 +129,29 @@
             users.Add(new RoomUser(userId, userName, observing));
         }
 
-        await HubConnection.SendAsync("AnnounceAlreadyInTheRoom", userId, currentRoom!.Observing);
+        await HubConnection.SendAsync("AnnounceAlreadyInTheRoom", userId, currentRoom!.Observing, currentEstimate, showEstimates);
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task OnAnnounceAlreadyInTheRoom(string userId, string userName, bool observing)
+    private async Task OnAnnounceAlreadyInTheRoom(string userId, string userName, bool observing, string? estimate, bool revealed)
     {
-        if (users.Any(x => x.Id == userId))
-            return;
+        var existingUser = users.SingleOrDefault(x => x.Id == userId);
+        if (existingUser == null)
+        {
+            existingUser = new RoomUser(userId, userName, observing);
+            users.Add(existingUser);
+        }
+        else
+        {
+            existingUser.Observing = observing;
+        }
 
-        users.Add(new RoomUser(userId, userName, observing));
+        if (estimate != null)
+            existingUser.Estimate = estimate;
+
+        if (revealed)
+            showEstimates = true;
+
         await InvokeAsync(StateHasChanged);
     }
 

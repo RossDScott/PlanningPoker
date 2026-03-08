@@ -53,14 +53,14 @@ public class PlanningPokerHub : Hub
         await Clients.Group(roomId).SendAsync("JoinRoom", GetUserId(), userName, observing);
     }
 
-    public async Task AnnounceAlreadyInTheRoom(string forClient, bool observing)
+    public async Task AnnounceAlreadyInTheRoom(string forClient, bool observing, string? estimate, bool showEstimates)
     {
         if (forClient == GetUserId())
             return;
 
         var userName = GetUserName();
 
-        await Clients.Client(forClient).SendAsync("AnnounceAlreadyInTheRoom", GetUserId(), userName, observing);
+        await Clients.Client(forClient).SendAsync("AnnounceAlreadyInTheRoom", GetUserId(), userName, observing, estimate, showEstimates);
     }
 
     public async Task SubmitEstimate(string roomId, string estimate)
