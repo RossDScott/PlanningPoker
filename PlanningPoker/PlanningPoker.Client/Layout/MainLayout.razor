@@ -4,8 +4,11 @@
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
+<div style="position: fixed; top: 8px; right: 12px; opacity: 0.4; z-index: 1000; pointer-events: none;">
+    <MudText Typo="Typo.caption">v@(Features.AppVersion.Version)</MudText>
+</div>
 <MudLayout>
-    <MudMainContent Class="pa-4">
+    <MudMainContent Class="pa-4 ms-2">
         @Body
     </MudMainContent>
 </MudLayout>
