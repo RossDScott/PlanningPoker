@@ -68,7 +68,7 @@
     {
         if (firstRender)
         {
-            var existingUser = await localStorage.GetItemAsync<AppUser>("User");
+            var existingUser = await localStorage.GetItemAsync<AppUser>(StorageKeys.User);
             isCheckingLocalStorage = false;
             if (existingUser != null)
             {
@@ -99,14 +99,14 @@
             .Build();
 
         await hubConnection.StartAsync();
-        hubConnection.On<string>("LoginFailed", OnLoginFailed);
+        hubConnection.On<string>(HubMessages.LoginFailed, OnLoginFailed);
 
         if (string.IsNullOrEmpty(user.Id))
             user.Id = Guid.NewGuid().ToString();
 
-        await hubConnection.InvokeAsync("Login", user.Id, user.Name);
+        await hubConnection.InvokeAsync(HubMessages.Login, user.Id, user.Name);
 
-        await localStorage.SetItemAsync("User", user);
+        await localStorage.SetItemAsync(StorageKeys.User, user);
         await OnLoginSuccess.InvokeAsync(new LoginResult { User = user, HubConnection = hubConnection });
 
         isLoggedIn = true;
@@ -121,7 +121,7 @@
 
         user.Licence = string.Empty;
         serverMessage = message;
-        await localStorage.SetItemAsync("User", user);
+        await localStorage.SetItemAsync(StorageKeys.User, user);
 
         await InvokeAsync(StateHasChanged);
     }

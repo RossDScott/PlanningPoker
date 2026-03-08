@@ -32,7 +32,7 @@
 
         hubConnection.Reconnected += async _ =>
         {
-            await hubConnection.InvokeAsync("Login", currentUser.Id, currentUser.Name);
+            await hubConnection.InvokeAsync(HubMessages.Login, currentUser.Id, currentUser.Name);
             if (currentRoom != null)
                 await pokerRoom.JoinRoom(currentRoom);
             await InvokeAsync(StateHasChanged);

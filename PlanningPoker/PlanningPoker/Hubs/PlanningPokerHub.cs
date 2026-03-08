@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.SignalR;
+using PlanningPoker.Client.Features;
 
 namespace PlanningPoker.Hubs;
 
@@ -25,7 +26,7 @@ public class PlanningPokerHub : Hub
                 ? "No licence key provided. Please log in with a valid licence key."
                 : "Invalid licence key provided. Please log in with a valid licence key.";
 
-            Clients.Caller.SendAsync("LoginFailed", errorMessage);
+            Clients.Caller.SendAsync(HubMessages.LoginFailed, errorMessage);
 
             // Reject the connection
             Context.Abort();
@@ -38,7 +39,10 @@ public class PlanningPokerHub : Hub
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         if (Context.Items.TryGetValue("UserId", out var userId))
-            await Clients.All.SendAsync("RemoveFromRoom", userId!.ToString());
+        {
+            if (Context.Items.TryGetValue("RoomId", out var roomId))
+                await Clients.Group(roomId!.ToString()!).SendAsync(HubMessages.RemoveFromRoom, userId!.ToString());
+        }
         await base.OnDisconnectedAsync(exception);
     }
 
@@ -52,10 +56,22 @@ public class PlanningPokerHub : Hub
 
     public async Task JoinRoom(string roomId, bool observing)
     {
+        if (Context.Items.TryGetValue("RoomId", out var previousRoom))
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, previousRoom!.ToString()!);
+
+        Context.Items["RoomId"] = roomId;
         var userName = GetUserName();
 
-        await Groups.AddToGroupAsync(Context.ConnectionId, roomId.ToString());
-        await Clients.Group(roomId).SendAsync("JoinRoom", GetUserId(), Context.ConnectionId, userName, observing);
+        await Groups.AddToGroupAsync(Context.ConnectionId, roomId);
+        await Clients.Group(roomId).SendAsync(HubMessages.JoinRoom, GetUserId(), Context.ConnectionId, userName, observing);
+    }
+
+    public async Task ExitRoom(string roomId)
+    {
+        var userId = GetUserId();
+        Context.Items.Remove("RoomId");
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomId);
+        await Clients.Group(roomId).SendAsync(HubMessages.RemoveFromRoom, userId);
     }
 
     public async Task AnnounceAlreadyInTheRoom(string forConnectionId, bool observing, string? estimate, bool showEstimates)
@@ -65,27 +81,27 @@ public class PlanningPokerHub : Hub
 
         var userName = GetUserName();
 
-        await Clients.Client(forConnectionId).SendAsync("AnnounceAlreadyInTheRoom", GetUserId(), userName, observing, estimate, showEstimates);
+        await Clients.Client(forConnectionId).SendAsync(HubMessages.AnnounceAlreadyInTheRoom, GetUserId(), userName, observing, estimate, showEstimates);
     }
 
     public async Task SubmitEstimate(string roomId, string estimate)
     {
-        if (!Client.Features.Cards.AvailableCards.Contains(estimate))
+        if (!Cards.AvailableCards.Contains(estimate))
         {
-            throw new ArgumentException($"Invalid estimate provided. Available cards: {string.Join(", ", Client.Features.Cards.AvailableCards)}");
+            throw new ArgumentException($"Invalid estimate provided. Available cards: {string.Join(", ", Cards.AvailableCards)}");
         }
 
-        await Clients.Group(roomId).SendAsync("SubmitEstimate", GetUserId(), estimate);
+        await Clients.Group(roomId).SendAsync(HubMessages.SubmitEstimate, GetUserId(), estimate);
     }
 
     public async Task RevealEstimates(string roomId)
     {
-        await Clients.Group(roomId).SendAsync("RevealEstimates");
+        await Clients.Group(roomId).SendAsync(HubMessages.RevealEstimates);
     }
 
     public async Task ResetEstimates(string roomId)
     {
-        await Clients.Group(roomId).SendAsync("ResetEstimates");
+        await Clients.Group(roomId).SendAsync(HubMessages.ResetEstimates);
     }
 
     private string GetUserId()
@@ -104,4 +120,3 @@ public class PlanningPokerHub : Hub
         throw new InvalidProgramException("Username is missing");
     }
 }
-

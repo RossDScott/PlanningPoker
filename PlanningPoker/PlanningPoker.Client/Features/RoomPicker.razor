@@ -1,4 +1,4 @@
-﻿@using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.AspNetCore.SignalR.Client
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 @inject IJSRuntime JSRuntime
 
@@ -18,7 +18,7 @@
                     <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="StartJoinANewRoom">Join a new Room</MudButton>
                     @if (rooms.Count > 0)
                     {
-                        <MudButton Variant="Variant.Outlined" Color="Color.Default" 
+                        <MudButton Variant="Variant.Outlined" Color="Color.Default"
                         OnClick="StartJoinExistingRoom"
                         Disabled="rooms.Count == 0">Join an existing Room</MudButton>
                     }
@@ -59,7 +59,7 @@
                                 <MudText Typo="Typo.h6">@room.Name</MudText>
                             </CardHeaderContent>
                             <CardHeaderActions>
-                                <MudIconButton Icon="@Icons.Material.Sharp.DeleteForever" Color="Color.Default" onclick="_ => DeleteRoom(room)" />
+                                <MudIconButton Icon="@Icons.Material.Sharp.DeleteForever" Color="Color.Default" @onclick="_ => DeleteRoom(room)" />
                             </CardHeaderActions>
                         </MudCardHeader>
                         <MudCardContent>
@@ -77,7 +77,7 @@
                 <MudCard style="min-width:10rem">
                     <MudCardActions>
                         <MudStack Row="true" Justify="Justify.Center" style="width: 100%">
-                            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" onclick="_ => currentStatus = Status.Choose">Back</MudButton>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" @onclick="_ => currentStatus = Status.Choose">Back</MudButton>
                         </MudStack>
                     </MudCardActions>
                 </MudCard>
@@ -99,8 +99,8 @@
             </MudCardContent>
             <MudCardActions>
                 <MudStack Row="true" Justify="Justify.Center" style="width: 100%">
-                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" onclick="ConfirmCreateANewRoom">Create</MudButton>
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" onclick="_ => currentStatus = Status.Choose">Cancel</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" @onclick="ConfirmCreateANewRoom">Create</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" @onclick="_ => currentStatus = Status.Choose">Cancel</MudButton>
                 </MudStack>
             </MudCardActions>
         </MudCard>
@@ -120,8 +120,8 @@
             </MudCardContent>
             <MudCardActions>
                 <MudStack Row="true" Justify="Justify.Center" style="width: 100%">
-                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" onclick="ConfirmJoinANewRoom">Join</MudButton>
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" onclick="_ => currentStatus = Status.Choose">Cancel</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" @onclick="ConfirmJoinANewRoom">Join</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" @onclick="_ => currentStatus = Status.Choose">Cancel</MudButton>
                 </MudStack>
             </MudCardActions>
         </MudCard>
@@ -142,7 +142,6 @@
 
     private Room? currentRoom = null;
     private Room? newRoom = null;
-    private string roomIdToJoin = "";
     private List<Room> rooms = [];
 
     [Parameter]
@@ -156,7 +155,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        rooms = (await LocalStorage.GetItemAsync<List<Room>>("rooms")) ?? [];
+        rooms = (await LocalStorage.GetItemAsync<List<Room>>(StorageKeys.Rooms)) ?? [];
 
         if (rooms.Count == 1)
             await SelectRoom(rooms[0]);
@@ -174,13 +173,14 @@
         newRoom = new Room { Id = Guid.NewGuid().ToString(), Name = "" };
         currentStatus = Status.CreateARoom;
     }
+
     private async Task ConfirmCreateANewRoom()
     {
         if (newRoom == null)
             return;
 
         rooms.Add(newRoom);
-        await LocalStorage.SetItemAsync("rooms", rooms);
+        await LocalStorage.SetItemAsync(StorageKeys.Rooms, rooms);
         await SelectRoom(newRoom);
     }
 
@@ -189,10 +189,11 @@
         newRoom = new Room { Id = "", Name = "" };
         currentStatus = Status.JoinAnExistingRoom;
     }
+
     private async Task ConfirmJoinANewRoom()
     {
         rooms.Add(newRoom!);
-        await LocalStorage.SetItemAsync("rooms", rooms);
+        await LocalStorage.SetItemAsync(StorageKeys.Rooms, rooms);
         await SelectRoom(newRoom!);
     }
 
@@ -208,7 +209,7 @@
 
         currentRoom.Observing = value;
 
-        await LocalStorage.SetItemAsync("rooms", rooms);
+        await LocalStorage.SetItemAsync(StorageKeys.Rooms, rooms);
         await SelectRoom(currentRoom);
     }
 
@@ -223,7 +224,7 @@
     private async Task DeleteRoom(Room room)
     {
         rooms.Remove(room);
-        await LocalStorage.SetItemAsync("rooms", rooms);
+        await LocalStorage.SetItemAsync(StorageKeys.Rooms, rooms);
     }
 
     private async Task CopyRoomId()
