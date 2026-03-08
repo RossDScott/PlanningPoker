@@ -1,4 +1,4 @@
-﻿@using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.AspNetCore.SignalR.Client
 @inject IJSRuntime JS
 
 @if (currentRoom != null)
@@ -80,69 +80,8 @@
 }
 
 @code {
-    private record VoteStats(
-        bool IsConsensus,
-        string? ConsensusValue,
-        string? Min,
-        List<string> MinVoters,
-        string? Max,
-        List<string> MaxVoters,
-        string? AverageCard,
-        int QuestionMarkCount);
+    // ── Fields & Parameters ───────────────────────────────────────────────────
 
-    private static readonly int[] NumericCardValues = [1, 2, 3, 5, 8, 13, 20];
-
-    private VoteStats? voteStats
-    {
-        get
-        {
-            if (!showEstimates) return null;
-
-            var voted = voters.Where(x => x.Estimate != null).ToList();
-            if (!voted.Any()) return null;
-
-            if (voted.Count == voters.Count && voted.Select(x => x.Estimate).Distinct().Count() == 1)
-                return new VoteStats(true, voted[0].Estimate!, null, [], null, [], null, 0);
-
-            var numericVotes = voted
-                .Where(x => int.TryParse(x.Estimate, out _))
-                .Select(x => (User: x, Value: int.Parse(x.Estimate!)))
-                .ToList();
-
-            var questionMarkCount = voted.Count(x => x.Estimate == "?");
-
-            if (!numericVotes.Any())
-                return new VoteStats(false, null, null, [], null, [], null, questionMarkCount);
-
-            var minVal = numericVotes.Min(x => x.Value);
-            var maxVal = numericVotes.Max(x => x.Value);
-            var average = numericVotes.Average(x => x.Value);
-            var nearestCard = NumericCardValues.FirstOrDefault(c => c >= average, NumericCardValues[^1]);
-
-            return new VoteStats(
-                false, null,
-                minVal.ToString(), numericVotes.Where(x => x.Value == minVal).Select(x => x.User.Name).ToList(),
-                maxVal.ToString(), numericVotes.Where(x => x.Value == maxVal).Select(x => x.User.Name).ToList(),
-                nearestCard.ToString(),
-                questionMarkCount);
-        }
-    }
-}
-
-@code {
-    RenderFragment showEstimate(RoomUser user) => (showEstimates, user.Estimate) switch
-    {
-        (_, null)      => @<MudChip T="string" Variant="Variant.Outlined" Color="Color.Primary" Class="ma-0" Style="visibility: hidden"></MudChip>,
-        (true, _)  => @<MudChip T="string" Variant="Variant.Outlined" Color="Color.Primary" Class="ma-0">
-                                    <span style="min-width: 1.2em; text-align: center">@user.Estimate</span>
-                                   </MudChip>,
-        (false, _) => @<MudChip T="string" Variant="Variant.Outlined" Color="Color.Default" Class="ma-0">
-                                      <span style="min-width: 1.2em; text-align: center"></span>
-                                   </MudChip>
-    };
-}
-
-@code {
     private List<RoomUser> users = [];
     private Room? currentRoom = null;
     private bool showEstimates = false;
@@ -154,63 +93,85 @@
     [Parameter, EditorRequired]
     public required string Name { get; set; }
 
+    // ── Computed Properties ───────────────────────────────────────────────────
+
+    private List<RoomUser> voters => users.Where(x => !x.Observing).ToList();
+    private IEnumerable<string> observers => users.Where(x => x.Observing).Select(x => x.Name).ToArray();
+    private string observersCSV => string.Join(", ", observers).Trim();
+
+    private VoteStats? voteStats => showEstimates ? VoteStats.Calculate(voters) : null;
+
+    // ── Render Helpers ────────────────────────────────────────────────────────
+
+    RenderFragment showEstimate(RoomUser user) => (showEstimates, user.Estimate) switch
+    {
+        (_, null)  => @<MudChip T="string" Variant="Variant.Outlined" Color="Color.Primary" Class="ma-0" Style="visibility: hidden"></MudChip>,
+        (true, _)  => @<MudChip T="string" Variant="Variant.Outlined" Color="Color.Primary" Class="ma-0">
+                          <span style="min-width: 1.2em; text-align: center">@user.Estimate</span>
+                      </MudChip>,
+        (false, _) => @<MudChip T="string" Variant="Variant.Outlined" Color="Color.Default" Class="ma-0">
+                          <span style="min-width: 1.2em; text-align: center"></span>
+                      </MudChip>
+    };
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
     protected override async Task OnInitializedAsync()
     {
         await WireUpHub();
     }
 
-    private List<RoomUser> voters => users.Where(x => !x.Observing).ToList();
-    private IEnumerable<string> observers => users.Where(x => x.Observing).Select(x => x.Name).ToArray();
-    private string observersCSV => string.Join(", ", observers)
-                                         .Trim();
+    // ── Public Methods ────────────────────────────────────────────────────────
 
     public async Task JoinRoom(Room room)
     {
         currentRoom = room;
         users.Clear();
         showEstimates = false;
-        await HubConnection.SendAsync("JoinRoom", currentRoom.Id, room.Observing);
+        await HubConnection.SendAsync(HubMessages.JoinRoom, currentRoom.Id, room.Observing);
 
-        var storedEstimate = await JS.InvokeAsync<string?>("sessionStorage.getItem", "currentEstimate");
+        var storedEstimate = await JS.InvokeAsync<string?>("sessionStorage.getItem", StorageKeys.CurrentEstimate);
         if (!string.IsNullOrEmpty(storedEstimate))
         {
             currentEstimate = storedEstimate;
-            await HubConnection.SendAsync("SubmitEstimate", currentRoom.Id, storedEstimate);
+            await HubConnection.SendAsync(HubMessages.SubmitEstimate, currentRoom.Id, storedEstimate);
         }
     }
 
     public async Task ExitRoom()
     {
-        await HubConnection.SendAsync("ExitRoom", currentRoom!.Id);
-        await JS.InvokeVoidAsync("sessionStorage.removeItem", "currentEstimate");
+        await HubConnection.SendAsync(HubMessages.ExitRoom, currentRoom!.Id);
+        await JS.InvokeVoidAsync("sessionStorage.removeItem", StorageKeys.CurrentEstimate);
         currentRoom = null;
     }
 
+    // ── Private Event Handlers ────────────────────────────────────────────────
+
     private async Task SendResetEstimates()
     {
-        await HubConnection.SendAsync("ResetEstimates", currentRoom!.Id);
+        await HubConnection.SendAsync(HubMessages.ResetEstimates, currentRoom!.Id);
     }
 
     private async Task SendRevealEstimates()
     {
-        await HubConnection.SendAsync("RevealEstimates", currentRoom!.Id);
+        await HubConnection.SendAsync(HubMessages.RevealEstimates, currentRoom!.Id);
     }
 
     private async Task WireUpHub()
     {
-        HubConnection.On<string, string, string, bool>("JoinRoom", OnJoinRoom);
-        HubConnection.On<string, string, bool, string?, bool>("AnnounceAlreadyInTheRoom", OnAnnounceAlreadyInTheRoom);
-        HubConnection.On<string, string>("SubmitEstimate", OnSubmitEstimate);
-        HubConnection.On<string>("RemoveFromRoom", RemoveFromRoom);
-        HubConnection.On("RevealEstimates", OnRevealEstimates);
-        HubConnection.On("ResetEstimates", OnResetEstimates);
+        HubConnection.On<string, string, string, bool>(HubMessages.JoinRoom, OnJoinRoom);
+        HubConnection.On<string, string, bool, string?, bool>(HubMessages.AnnounceAlreadyInTheRoom, OnAnnounceAlreadyInTheRoom);
+        HubConnection.On<string, string>(HubMessages.SubmitEstimate, OnSubmitEstimate);
+        HubConnection.On<string>(HubMessages.RemoveFromRoom, RemoveFromRoom);
+        HubConnection.On(HubMessages.RevealEstimates, OnRevealEstimates);
+        HubConnection.On(HubMessages.ResetEstimates, OnResetEstimates);
     }
 
     private async Task OnJoinRoom(string userId, string connectionId, string userName, bool observing)
     {
         var existingUser = users.SingleOrDefault(x => x.Id == userId);
 
-        if(existingUser != null)
+        if (existingUser != null)
         {
             existingUser.Observing = observing;
         }
@@ -219,7 +180,7 @@
             users.Add(new RoomUser(userId, userName, observing));
         }
 
-        await HubConnection.SendAsync("AnnounceAlreadyInTheRoom", connectionId, currentRoom!.Observing, currentEstimate, showEstimates);
+        await HubConnection.SendAsync(HubMessages.AnnounceAlreadyInTheRoom, connectionId, currentRoom!.Observing, currentEstimate, showEstimates);
         await InvokeAsync(StateHasChanged);
     }
 
@@ -269,7 +230,7 @@
     {
         showEstimates = false;
         currentEstimate = null;
-        await JS.InvokeVoidAsync("sessionStorage.removeItem", "currentEstimate");
+        await JS.InvokeVoidAsync("sessionStorage.removeItem", StorageKeys.CurrentEstimate);
         users.ForEach(x => x.Estimate = null);
         await InvokeAsync(StateHasChanged);
     }
@@ -292,7 +253,7 @@
             return;
 
         currentEstimate = estimate;
-        await JS.InvokeVoidAsync("sessionStorage.setItem", "currentEstimate", estimate);
-        await HubConnection.SendAsync("SubmitEstimate", currentRoom.Id, estimate);
+        await JS.InvokeVoidAsync("sessionStorage.setItem", StorageKeys.CurrentEstimate, estimate);
+        await HubConnection.SendAsync(HubMessages.SubmitEstimate, currentRoom.Id, estimate);
     }
 }

@@ -14,7 +14,6 @@
 </MudLayout>
 
 @code {
-    private bool _drawerOpen = true;
     private bool _isDarkMode = true;
     private MudTheme? _theme = null;
 
@@ -28,16 +27,6 @@
                 PaletteDark = _darkPalette,
                 LayoutProperties = new LayoutProperties()
             };
-    }
-
-    private void DrawerToggle()
-    {
-        _drawerOpen = !_drawerOpen;
-    }
-
-    private void DarkModeToggle()
-    {
-        _isDarkMode = !_isDarkMode;
     }
 
     private readonly PaletteLight _lightPalette = new()
@@ -79,9 +68,4 @@
             OverlayLight = "#1e1e2d80",
         };
 
-    public string DarkLightModeButtonIcon => _isDarkMode switch
-    {
-        true => Icons.Material.Rounded.AutoMode,
-        false => Icons.Material.Outlined.DarkMode,
-    };
 }

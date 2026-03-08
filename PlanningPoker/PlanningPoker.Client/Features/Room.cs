@@ -1,9 +1,8 @@
-﻿namespace PlanningPoker.Client.Features;
+namespace PlanningPoker.Client.Features;
 
-public record Room
+public class Room
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = string.Empty;
     public required string Name { get; set; }
     public bool Observing { get; set; } = false;
 }
-
