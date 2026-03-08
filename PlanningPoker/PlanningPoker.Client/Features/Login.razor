@@ -54,7 +54,7 @@
 </div>
 
 @code {
-    private AppUser user = new AppUser { Name = "", Licence = "" };
+    private AppUser user = new AppUser { Id = "", Name = "", Licence = "" };
     private bool isCheckingLocalStorage = true;
     private bool isLoggedIn = false;
     private bool isLoading = true;
@@ -72,6 +72,8 @@
             isCheckingLocalStorage = false;
             if (existingUser != null)
             {
+                if (string.IsNullOrEmpty(existingUser.Id))
+                    existingUser.Id = Guid.NewGuid().ToString();
                 user = existingUser;
                 await OnLogin();
             }
@@ -98,7 +100,10 @@
         await hubConnection.StartAsync();
         hubConnection.On<string>("LoginFailed", OnLoginFailed);
 
-        await hubConnection.InvokeAsync("Login", user.Name);
+        if (string.IsNullOrEmpty(user.Id))
+            user.Id = Guid.NewGuid().ToString();
+
+        await hubConnection.InvokeAsync("Login", user.Id, user.Name);
 
         await localStorage.SetItemAsync("User", user);
         await OnLoginSuccess.InvokeAsync(new LoginResult { User = user, HubConnection = hubConnection });
