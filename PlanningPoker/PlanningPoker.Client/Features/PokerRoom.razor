@@ -49,7 +49,84 @@
                 </MudCard>
             </div>
         </div>
+
+        @if (showEstimates && voteStats is { } stats)
+        {
+            <div class="d-flex justify-center mt-3">
+                <MudPaper Class="pa-4" Style="min-width:300px">
+                    @if (stats.IsConsensus)
+                    {
+                        <MudText Typo="Typo.h5" Align="Align.Center" Color="Color.Success">Consensus! Everyone voted @stats.ConsensusValue</MudText>
+                    }
+                    else
+                    {
+                        <MudStack Spacing="1">
+                            @if (stats.Min != null)
+                            {
+                                <MudText><b>Min:</b> @stats.Min — @string.Join(", ", stats.MinVoters)</MudText>
+                                <MudText><b>Max:</b> @stats.Max — @string.Join(", ", stats.MaxVoters)</MudText>
+                                <MudText><b>Average (nearest card):</b> @stats.AverageCard</MudText>
+                            }
+                            @if (stats.QuestionMarkCount > 0)
+                            {
+                                <MudText><b>Voted ?:</b> @stats.QuestionMarkCount</MudText>
+                            }
+                        </MudStack>
+                    }
+                </MudPaper>
+            </div>
+        }
     </div>
+}
+
+@code {
+    private record VoteStats(
+        bool IsConsensus,
+        string? ConsensusValue,
+        string? Min,
+        List<string> MinVoters,
+        string? Max,
+        List<string> MaxVoters,
+        string? AverageCard,
+        int QuestionMarkCount);
+
+    private static readonly int[] NumericCardValues = [1, 2, 3, 5, 8, 13, 20];
+
+    private VoteStats? voteStats
+    {
+        get
+        {
+            if (!showEstimates) return null;
+
+            var voted = voters.Where(x => x.Estimate != null).ToList();
+            if (!voted.Any()) return null;
+
+            if (voted.Count == voters.Count && voted.Select(x => x.Estimate).Distinct().Count() == 1)
+                return new VoteStats(true, voted[0].Estimate!, null, [], null, [], null, 0);
+
+            var numericVotes = voted
+                .Where(x => int.TryParse(x.Estimate, out _))
+                .Select(x => (User: x, Value: int.Parse(x.Estimate!)))
+                .ToList();
+
+            var questionMarkCount = voted.Count(x => x.Estimate == "?");
+
+            if (!numericVotes.Any())
+                return new VoteStats(false, null, null, [], null, [], null, questionMarkCount);
+
+            var minVal = numericVotes.Min(x => x.Value);
+            var maxVal = numericVotes.Max(x => x.Value);
+            var average = numericVotes.Average(x => x.Value);
+            var nearestCard = NumericCardValues.FirstOrDefault(c => c >= average, NumericCardValues[^1]);
+
+            return new VoteStats(
+                false, null,
+                minVal.ToString(), numericVotes.Where(x => x.Value == minVal).Select(x => x.User.Name).ToList(),
+                maxVal.ToString(), numericVotes.Where(x => x.Value == maxVal).Select(x => x.User.Name).ToList(),
+                nearestCard.ToString(),
+                questionMarkCount);
+        }
+    }
 }
 
 @code {
@@ -119,7 +196,7 @@
 
     private async Task WireUpHub()
     {
-        HubConnection.On<string, string, bool>("JoinRoom", OnJoinRoom);
+        HubConnection.On<string, string, string, bool>("JoinRoom", OnJoinRoom);
         HubConnection.On<string, string, bool, string?, bool>("AnnounceAlreadyInTheRoom", OnAnnounceAlreadyInTheRoom);
         HubConnection.On<string, string>("SubmitEstimate", OnSubmitEstimate);
         HubConnection.On<string>("RemoveFromRoom", RemoveFromRoom);
@@ -127,7 +204,7 @@
         HubConnection.On("ResetEstimates", OnResetEstimates);
     }
 
-    private async Task OnJoinRoom(string userId, string userName, bool observing)
+    private async Task OnJoinRoom(string userId, string connectionId, string userName, bool observing)
     {
         var existingUser = users.SingleOrDefault(x => x.Id == userId);
 
@@ -140,7 +217,7 @@
             users.Add(new RoomUser(userId, userName, observing));
         }
 
-        await HubConnection.SendAsync("AnnounceAlreadyInTheRoom", userId, currentRoom!.Observing, currentEstimate, showEstimates);
+        await HubConnection.SendAsync("AnnounceAlreadyInTheRoom", connectionId, currentRoom!.Observing, currentEstimate, showEstimates);
         await InvokeAsync(StateHasChanged);
     }
 
