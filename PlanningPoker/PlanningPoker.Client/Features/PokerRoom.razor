@@ -167,6 +167,8 @@
     public async Task JoinRoom(Room room)
     {
         currentRoom = room;
+        users.Clear();
+        showEstimates = false;
         await HubConnection.SendAsync("JoinRoom", currentRoom.Id, room.Observing);
 
         var storedEstimate = await JS.InvokeAsync<string?>("sessionStorage.getItem", "currentEstimate");

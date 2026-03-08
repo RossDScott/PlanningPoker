@@ -95,6 +95,7 @@
             {
                 options.AccessTokenProvider = () => Task.FromResult<string?>(user.Licence);
             })
+            .WithAutomaticReconnect()
             .Build();
 
         await hubConnection.StartAsync();
