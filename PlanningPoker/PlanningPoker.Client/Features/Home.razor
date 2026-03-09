@@ -1,4 +1,4 @@
-﻿@page "/"
+@page "/"
 @using Microsoft.AspNetCore.SignalR.Client
 
 <PageTitle>Planning Poker</PageTitle>
@@ -17,6 +17,11 @@
             <PokerRoom @ref="pokerRoom" Name="name" HubConnection="hubConnection"></PokerRoom>
         </div>
     </div>
+
+    <div style="position: fixed; bottom: 12px; right: 12px; opacity: 0.5; z-index: 1000; pointer-events: none; display: flex; align-items: center; gap: 6px;">
+        <span style="width: 10px; height: 10px; border-radius: 50%; background-color: @connectionColor; display: inline-block;"></span>
+        <MudText Typo="Typo.caption">@connectionText</MudText>
+    </div>
 }
 
 @code{
@@ -24,6 +29,8 @@
     private AppUser? currentUser = null;
     private Room? currentRoom = null;
     private PokerRoom pokerRoom;
+    private string connectionColor = "#3dcb6c";
+    private string connectionText = "Connected";
 
     private void OnLogin(LoginResult result)
     {
@@ -32,9 +39,25 @@
 
         hubConnection.Reconnected += async _ =>
         {
+            connectionColor = "#3dcb6c";
+            connectionText = "Connected";
             await hubConnection.InvokeAsync(HubMessages.Login, currentUser.Id, currentUser.Name);
             if (currentRoom != null)
                 await pokerRoom.JoinRoom(currentRoom);
+            await InvokeAsync(StateHasChanged);
+        };
+
+        hubConnection.Reconnecting += async _ =>
+        {
+            connectionColor = "#ffb545";
+            connectionText = "Reconnecting...";
+            await InvokeAsync(StateHasChanged);
+        };
+
+        hubConnection.Closed += async _ =>
+        {
+            connectionColor = "#ff3f5f";
+            connectionText = "Disconnected";
             await InvokeAsync(StateHasChanged);
         };
     }
