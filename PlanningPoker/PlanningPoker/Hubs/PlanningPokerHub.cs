@@ -38,11 +38,6 @@ public class PlanningPokerHub : Hub
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        if (Context.Items.TryGetValue("UserId", out var userId))
-        {
-            if (Context.Items.TryGetValue("RoomId", out var roomId))
-                await Clients.Group(roomId!.ToString()!).SendAsync(HubMessages.RemoveFromRoom, userId!.ToString());
-        }
         await base.OnDisconnectedAsync(exception);
     }
 
