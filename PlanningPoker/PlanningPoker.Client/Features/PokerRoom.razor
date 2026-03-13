@@ -95,8 +95,8 @@
 
     // ── Computed Properties ───────────────────────────────────────────────────
 
-    private List<RoomUser> voters => users.Where(x => !x.Observing).ToList();
-    private IEnumerable<string> observers => users.Where(x => x.Observing).Select(x => x.Name).ToArray();
+    private List<RoomUser> voters => users.Where(x => !x.Observing).OrderBy(x => x.Name).ToList();
+    private IEnumerable<string> observers => users.Where(x => x.Observing).OrderBy(x => x.Name).Select(x => x.Name).ToArray();
     private string observersCSV => string.Join(", ", observers).Trim();
 
     private VoteStats? voteStats => showEstimates ? VoteStats.Calculate(voters) : null;
