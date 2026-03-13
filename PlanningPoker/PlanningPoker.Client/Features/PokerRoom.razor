@@ -66,6 +66,7 @@
                                 <MudText><b>Min:</b> @stats.Min — @string.Join(", ", stats.MinVoters)</MudText>
                                 <MudText><b>Max:</b> @stats.Max — @string.Join(", ", stats.MaxVoters)</MudText>
                                 <MudText><b>Average (nearest card):</b> @stats.AverageCard</MudText>
+                                <MudText><b>Mode:</b> @stats.ModeCard — @string.Join(", ", stats.ModeVoters)</MudText>
                             }
                             @if (stats.QuestionMarkCount > 0)
                             {
