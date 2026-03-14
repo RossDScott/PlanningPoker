@@ -43,7 +43,7 @@
                     </MudCardHeader>
                     <MudCardActions>
                         <MudStack Row="true" Justify="Justify.Center" AlignItems="AlignItems.Center">
-                            <MudSwitch Value="autoReveal" ValueChanged="OnAutoRevealChanged" Label="Auto-reveal" Color="Color.Primary" Disabled="showEstimates" />
+                            <MudSwitch T="bool" Value="autoReveal" ValueChanged="OnAutoRevealChanged" Label="Auto-reveal" Color="Color.Primary" Disabled="showEstimates" />
                             <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="SendResetEstimates">Reset Estimates</MudButton>
                             <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="SendRevealEstimates">Show Estimates</MudButton>
                         </MudStack>
