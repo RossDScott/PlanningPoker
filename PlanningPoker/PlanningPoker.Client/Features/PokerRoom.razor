@@ -1,5 +1,6 @@
 @using Microsoft.AspNetCore.SignalR.Client
 @inject IJSRuntime JS
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 
 @if (currentRoom != null)
 {
@@ -41,7 +42,8 @@
                         </CardHeaderContent>
                     </MudCardHeader>
                     <MudCardActions>
-                        <MudStack Row="true" Justify="Justify.Center">
+                        <MudStack Row="true" Justify="Justify.Center" AlignItems="AlignItems.Center">
+                            <MudSwitch Value="autoReveal" ValueChanged="OnAutoRevealChanged" Label="Auto-reveal" Color="Color.Primary" Disabled="showEstimates" />
                             <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="SendResetEstimates">Reset Estimates</MudButton>
                             <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="SendRevealEstimates">Show Estimates</MudButton>
                         </MudStack>
@@ -87,6 +89,7 @@
     private Room? currentRoom = null;
     private bool showEstimates = false;
     private string? currentEstimate = null;
+    private bool autoReveal = false;
 
     [Parameter, EditorRequired]
     public required HubConnection HubConnection { get; set; }
@@ -119,6 +122,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        autoReveal = await LocalStorage.GetItemAsync<bool>(StorageKeys.AutoReveal);
         await WireUpHub();
     }
 
@@ -147,6 +151,12 @@
     }
 
     // ── Private Event Handlers ────────────────────────────────────────────────
+
+    private async Task OnAutoRevealChanged(bool value)
+    {
+        autoReveal = value;
+        await LocalStorage.SetItemAsync(StorageKeys.AutoReveal, value);
+    }
 
     private async Task SendResetEstimates()
     {
@@ -218,8 +228,15 @@
             return;
 
         user.Estimate = estimate;
+
+        if (autoReveal && AllVotesIn())
+            await HubConnection.SendAsync(HubMessages.RevealEstimates, currentRoom!.Id);
+
         await InvokeAsync(StateHasChanged);
     }
+
+    private bool AllVotesIn() =>
+        voters.Count > 0 && voters.All(u => u.Estimate != null);
 
     private async Task OnRevealEstimates()
     {
