@@ -236,7 +236,7 @@
     }
 
     private bool AllVotesIn() =>
-        voters.Count > 0 && voters.All(u => u.Estimate != null);
+        voters.Count > 1 && voters.All(u => u.Estimate != null);
 
     private async Task OnRevealEstimates()
     {
