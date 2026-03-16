@@ -59,6 +59,10 @@
                     @if (stats.IsConsensus)
                     {
                         <MudText Typo="Typo.h5" Align="Align.Center" Color="Color.Success">Consensus! Everyone voted @stats.ConsensusValue</MudText>
+                        @if (_showMinigameAnnouncement)
+                        {
+                            <MudText Typo="Typo.body1" Align="Align.Center" Color="Color.Warning" Class="mt-1">🎮 Starting game...</MudText>
+                        }
                     }
                     else
                     {
@@ -103,6 +107,7 @@
     private bool _showMinigame = false;
     private int _minigameVoterCount = 0;
     private Dictionary<string, MinigamePlayerResult> _minigameScores = new();
+    private bool _showMinigameAnnouncement = false;
 
     [Parameter, EditorRequired]
     public required HubConnection HubConnection { get; set; }
@@ -258,6 +263,12 @@
         {
             _minigameVoterCount = voters.Count;
             _minigameScores = new();
+            _showMinigameAnnouncement = true;
+            await InvokeAsync(StateHasChanged);
+
+            await Task.Delay(1000);
+
+            _showMinigameAnnouncement = false;
             _showMinigame = true;
         }
 
@@ -269,6 +280,7 @@
         showEstimates = false;
         currentEstimate = null;
         _showMinigame = false;
+        _showMinigameAnnouncement = false;
         _minigameVoterCount = 0;
         _minigameScores = new();
         await JS.InvokeVoidAsync("sessionStorage.removeItem", StorageKeys.CurrentEstimate);
