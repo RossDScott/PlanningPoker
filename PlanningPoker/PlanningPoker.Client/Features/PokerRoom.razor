@@ -254,7 +254,7 @@
         showEstimates = true;
 
         var stats = VoteStats.Calculate(voters);
-        if (stats?.IsConsensus == true && voters.Count > 1)
+        if (stats?.IsConsensus == true)
         {
             _minigameVoterCount = voters.Count;
             _minigameScores = new();
