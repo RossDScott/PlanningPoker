@@ -176,13 +176,17 @@
     private const double FlapStrength          = -10.0;
     private const double PipeSpeed             = 6.5;
     private const int    PipeWidth             = 55;
-    private const double GapHeight             = 145;
+    private const double GapHeight             = 135;
     private const int    SpawnEvery            = 50;
     private const int    GroundY               = 465;
     private const int    GameSeconds           = 20;
     private const int    TickMs                = 40;
     private const int    TicksPerSec           = 1000 / TickMs;
     private const int    ScoreboardDelaySecs   = 3;
+
+    // Speed and gravity scale up linearly as seconds elapse
+    private double CurrentPipeSpeed => PipeSpeed + (GameSeconds - _timeLeft) * 0.7;
+    private double CurrentGravity   => Gravity   + (GameSeconds - _timeLeft) * 0.08;
 
     // ── Game state ────────────────────────────────────────────────────────────
 
@@ -366,7 +370,7 @@
             }
         }
 
-        _birdVelocity += Gravity;
+        _birdVelocity += CurrentGravity;
         _birdY        += _birdVelocity;
 
         if (_birdY + 28 >= GroundY || _birdY <= 0)
@@ -379,7 +383,7 @@
 
         foreach (var pipe in _pipes)
         {
-            pipe.X -= PipeSpeed;
+            pipe.X -= CurrentPipeSpeed;
 
             if (CollidesWithPipe(pipe))
             {
