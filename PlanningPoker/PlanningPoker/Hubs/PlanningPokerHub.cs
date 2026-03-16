@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.AspNetCore.SignalR;
 using PlanningPoker.Client.Features;
 
@@ -5,12 +6,26 @@ namespace PlanningPoker.Hubs;
 
 public class PlanningPokerHub : Hub
 {
-    private readonly string licenceKey;
+    // ── Game session state (static = shared across all hub instances) ─────────
 
-    public PlanningPokerHub(IConfiguration configuration)
+    private static readonly ConcurrentDictionary<string, GameSession> _gameSessions = new();
+
+    private record GameSession(
+        string[] ExpectedPlayers,
+        ConcurrentDictionary<string, (string Name, int Score)> Scores);
+
+    // ── Fields ────────────────────────────────────────────────────────────────
+
+    private readonly string licenceKey;
+    private readonly IHubContext<PlanningPokerHub> _hubContext;
+
+    public PlanningPokerHub(IConfiguration configuration, IHubContext<PlanningPokerHub> hubContext)
     {
         licenceKey = configuration["PlanningPoker:LicenceKey"] ?? throw new InvalidOperationException("LicenceKey not configured.");
+        _hubContext = hubContext;
     }
+
+    // ── Connection lifecycle ──────────────────────────────────────────────────
 
     public override Task OnConnectedAsync()
     {
@@ -28,7 +43,6 @@ public class PlanningPokerHub : Hub
 
             Clients.Caller.SendAsync(HubMessages.LoginFailed, errorMessage);
 
-            // Reject the connection
             Context.Abort();
             return Task.CompletedTask;
         }
@@ -40,6 +54,8 @@ public class PlanningPokerHub : Hub
     {
         await base.OnDisconnectedAsync(exception);
     }
+
+    // ── Room methods ──────────────────────────────────────────────────────────
 
     public Task Login(string userId, string username)
     {
@@ -96,7 +112,58 @@ public class PlanningPokerHub : Hub
 
     public async Task ResetEstimates(string roomId)
     {
+        _gameSessions.TryRemove(roomId, out _);
         await Clients.Group(roomId).SendAsync(HubMessages.ResetEstimates);
+    }
+
+    // ── Mini-game methods ─────────────────────────────────────────────────────
+
+    public async Task StartMinigame(string roomId, string[] voterIds)
+    {
+        // De-duplicate: only the first caller per room creates the session
+        var session = new GameSession(voterIds, new ConcurrentDictionary<string, (string, int)>());
+        if (!_gameSessions.TryAdd(roomId, session))
+            return;
+
+        await Clients.Group(roomId).SendAsync(HubMessages.StartMinigame);
+
+        // Safety timeout: broadcast results after 90s even if not all players submitted
+        var hubContext = _hubContext;
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(90));
+            await BroadcastMinigameResults(roomId, hubContext);
+        });
+    }
+
+    public async Task SubmitGameScore(string roomId, int score)
+    {
+        if (!_gameSessions.TryGetValue(roomId, out var session))
+            return;
+
+        var userId = GetUserId();
+        var userName = GetUserName();
+        session.Scores.TryAdd(userId, (userName, score));
+
+        bool allIn = session.ExpectedPlayers.All(id => session.Scores.ContainsKey(id));
+        if (allIn)
+            await BroadcastMinigameResults(roomId, _hubContext);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static async Task BroadcastMinigameResults(string roomId, IHubContext<PlanningPokerHub> hubContext)
+    {
+        if (!_gameSessions.TryRemove(roomId, out var session) || session.Scores.IsEmpty)
+            return;
+
+        var winner = session.Scores.MaxBy(x => x.Value.Score);
+        var scores = session.Scores.Values
+            .OrderByDescending(x => x.Score)
+            .Select(x => new MinigamePlayerResult(x.Name, x.Score))
+            .ToList();
+
+        await hubContext.Clients.Group(roomId).SendAsync(HubMessages.MinigameResults, winner.Value.Name, scores);
     }
 
     private string GetUserId()

@@ -79,7 +79,26 @@
                 </MudPaper>
             </div>
         }
+
+        @if (_minigameWinner != null)
+        {
+            <div class="d-flex justify-center mt-3">
+                <MudPaper Class="pa-4" Style="min-width:300px;text-align:center">
+                    <MudText Typo="Typo.h4" Color="Color.Warning">🏆 @_minigameWinner wins!</MudText>
+                    <MudDivider Class="my-2" />
+                    @foreach (var result in _minigameScores)
+                    {
+                        <MudText>@result.Name — @result.Score pipe@(result.Score == 1 ? "" : "s")</MudText>
+                    }
+                </MudPaper>
+            </div>
+        }
     </div>
+}
+
+@if (_showMinigame)
+{
+    <MinigameModal OnScoreSubmitted="OnGameScoreSubmitted" />
 }
 
 @code {
@@ -90,6 +109,10 @@
     private bool showEstimates = false;
     private string? currentEstimate = null;
     private bool autoReveal = false;
+
+    private bool _showMinigame = false;
+    private string? _minigameWinner = null;
+    private List<MinigamePlayerResult> _minigameScores = [];
 
     [Parameter, EditorRequired]
     public required HubConnection HubConnection { get; set; }
@@ -173,6 +196,8 @@
         HubConnection.On<string>(HubMessages.RemoveFromRoom, RemoveFromRoom);
         HubConnection.On(HubMessages.RevealEstimates, OnRevealEstimates);
         HubConnection.On(HubMessages.ResetEstimates, OnResetEstimates);
+        HubConnection.On(HubMessages.StartMinigame, OnStartMinigame);
+        HubConnection.On<string, List<MinigamePlayerResult>>(HubMessages.MinigameResults, OnMinigameResults);
     }
 
     private async Task OnJoinRoom(string userId, string connectionId, string userName, bool observing)
@@ -238,6 +263,15 @@
     private async Task OnRevealEstimates()
     {
         showEstimates = true;
+
+        // Trigger mini-game on consensus (voters only; de-duplicated server-side)
+        var stats = VoteStats.Calculate(voters);
+        if (stats?.IsConsensus == true && voters.Count > 1 && !(currentRoom?.Observing ?? false))
+        {
+            var voterIds = voters.Select(v => v.Id).ToArray();
+            await HubConnection.SendAsync(HubMessages.StartMinigame, currentRoom!.Id, voterIds);
+        }
+
         await InvokeAsync(StateHasChanged);
     }
 
@@ -245,8 +279,35 @@
     {
         showEstimates = false;
         currentEstimate = null;
+        _minigameWinner = null;
+        _minigameScores = [];
         await JS.InvokeVoidAsync("sessionStorage.removeItem", StorageKeys.CurrentEstimate);
         users.ForEach(x => x.Estimate = null);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnStartMinigame()
+    {
+        if (currentRoom?.Observing == true) return; // observers watch, not play
+
+        _showMinigame = true;
+        _minigameWinner = null;
+        _minigameScores = [];
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnMinigameResults(string winnerName, List<MinigamePlayerResult> scores)
+    {
+        _showMinigame = false;
+        _minigameWinner = winnerName;
+        _minigameScores = scores;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnGameScoreSubmitted(int score)
+    {
+        _showMinigame = false;
+        await HubConnection.SendAsync(HubMessages.SubmitGameScore, currentRoom!.Id, score);
         await InvokeAsync(StateHasChanged);
     }
 
