@@ -1,0 +1,442 @@
+@implements IAsyncDisposable
+
+<div class="mg-overlay" @ref="_container" @onkeydown="OnKeyDown" tabindex="0">
+    <div class="mg-wrapper">
+        <MudText Typo="Typo.h5" Align="Align.Center" Class="mb-2" Style="color:white">🐦 Flappy Sprint!</MudText>
+
+        @if (_state == GameState.Countdown)
+        {
+            <div class="mg-canvas" style="display:flex;align-items:center;justify-content:center;flex-direction:column">
+                <MudText Typo="Typo.h1" Style="color:#1976d2;font-size:6rem;font-weight:bold">
+                    @(_countdownValue > 0 ? _countdownValue.ToString() : "GO!")
+                </MudText>
+                <MudText Style="color:#aaa" Class="mt-2">Get ready to flap!</MudText>
+            </div>
+        }
+        else if (_state == GameState.Playing || _state == GameState.Dead)
+        {
+            <div class="mg-canvas" @onclick="Flap" style="cursor:pointer">
+
+                <!-- Background -->
+                <div style="position:absolute;inset:0;background:linear-gradient(180deg,#87CEEB 0%,#B0E2FF 60%,#c8f0a0 100%)"></div>
+
+                <!-- Timer -->
+                <div style="position:absolute;top:8px;left:10px;color:#333;font-weight:bold;font-size:1rem;z-index:10;
+                            background:rgba(255,255,255,0.7);padding:2px 8px;border-radius:4px">
+                    ⏱ @_timeLeft s
+                </div>
+
+                <!-- Score -->
+                <div style="position:absolute;top:8px;right:10px;color:#333;font-weight:bold;font-size:1rem;z-index:10;
+                            background:rgba(255,255,255,0.7);padding:2px 8px;border-radius:4px">
+                    🪄 @_score
+                </div>
+
+                <!-- Pipes -->
+                @foreach (var pipe in _pipes)
+                {
+                    @* Top pipe *@
+                    <div style="position:absolute;left:@((int)pipe.X)px;top:0;width:@(PipeWidth)px;height:@((int)pipe.GapTop)px;
+                                background:#4CAF50;border-right:5px solid #2E7D32;border-left:5px solid #66BB6A;
+                                border-bottom:10px solid #1B5E20;z-index:4"></div>
+                    @* Top pipe cap *@
+                    <div style="position:absolute;left:@((int)pipe.X - 4)px;top:@((int)pipe.GapTop - 14)px;width:@(PipeWidth + 8)px;height:14px;
+                                background:#388E3C;border:3px solid #1B5E20;border-radius:3px;z-index:5"></div>
+
+                    @* Bottom pipe cap *@
+                    <div style="position:absolute;left:@((int)pipe.X - 4)px;top:@((int)(pipe.GapTop + GapHeight))px;width:@(PipeWidth + 8)px;height:14px;
+                                background:#388E3C;border:3px solid #1B5E20;border-radius:3px;z-index:5"></div>
+                    @* Bottom pipe *@
+                    <div style="position:absolute;left:@((int)pipe.X)px;top:@((int)(pipe.GapTop + GapHeight + 14))px;width:@(PipeWidth)px;height:600px;
+                                background:#4CAF50;border-right:5px solid #2E7D32;border-left:5px solid #66BB6A;
+                                border-top:0;z-index:4"></div>
+                }
+
+                <!-- Ground -->
+                <div style="position:absolute;bottom:0;left:0;right:0;height:30px;background:#8B6914;border-top:4px solid #A0522D;z-index:6"></div>
+                <div style="position:absolute;bottom:26px;left:0;right:0;height:6px;background:#90EE90;z-index:6"></div>
+
+                <!-- Bird -->
+                <div style="position:absolute;left:80px;top:@((int)_birdY)px;font-size:26px;z-index:8;
+                            transform:scaleX(-1) rotate(@((int)Math.Clamp(_birdVelocity * 4, -45, 45))deg);
+                            transition:transform 0.05s linear;
+                            filter:@(_state == GameState.Dead ? "grayscale(1)" : "none")">🐦</div>
+
+                <!-- Death overlay -->
+                @if (_state == GameState.Dead)
+                {
+                    <div style="position:absolute;inset:0;background:rgba(0,0,0,0.55);display:flex;flex-direction:column;
+                                align-items:center;justify-content:center;z-index:20">
+                        @if (_hitObstacle)
+                        {
+                            <div style="font-size:2.5rem">💥</div>
+                            <MudText Typo="Typo.h5" Style="color:white" Class="mt-1">Oops!</MudText>
+                        }
+                        else
+                        {
+                            <div style="font-size:2.5rem">⏱️</div>
+                            <MudText Typo="Typo.h5" Style="color:white" Class="mt-1">Time's up!</MudText>
+                        }
+                        <MudText Typo="Typo.h4" Style="color:#FFD700" Class="mt-2">Score: @_score</MudText>
+                    </div>
+                }
+            </div>
+
+            @if (_state == GameState.Playing)
+            {
+                <MudText Align="Align.Center" Typo="Typo.caption" Style="color:#aaa" Class="mt-1">
+                    Click or press <b>Space</b> to flap
+                </MudText>
+            }
+        }
+        else if (_state == GameState.Waiting)
+        {
+            @if (_scoreboardVisible)
+            {
+                var sorted = ReceivedScores.Values.OrderByDescending(x => x.Score).ToList();
+                var winner = sorted.FirstOrDefault();
+                <div class="mg-canvas" style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                                              background:linear-gradient(135deg,#1a1a2e,#16213e)">
+                    <div style="font-size:3rem">🏆</div>
+                    <MudText Typo="Typo.h4" Style="color:#FFD700" Class="mt-1">@winner?.Name wins!</MudText>
+                    <MudDivider Style="width:80%;border-color:#555" Class="my-3" />
+                    @foreach (var r in sorted)
+                    {
+                        <MudText Typo="Typo.h6" Style="color:white">
+                            @r.Name — @r.Score pipe@(r.Score == 1 ? "" : "s")
+                        </MudText>
+                    }
+                    <MudButton Variant="Variant.Outlined" Style="color:white;border-color:#555" Class="mt-5" OnClick="Close">
+                        Close
+                    </MudButton>
+                </div>
+            }
+            else
+            {
+                <div class="mg-canvas" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+                    <div style="font-size:3rem">🎉</div>
+                    <MudText Typo="Typo.h4" Style="color:#FFD700" Class="mt-2">Score: @_score</MudText>
+                    <MudProgressCircular Indeterminate="true" Style="color:white" Class="mt-5" />
+                    <MudText Style="color:#ccc" Class="mt-3">
+                        Waiting for other players... (@ReceivedScores.Count / @ExpectedPlayerCount)
+                    </MudText>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<style>
+    .mg-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.88);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        outline: none;
+    }
+
+    .mg-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .mg-canvas {
+        position: relative;
+        width: 400px;
+        height: 500px;
+        overflow: hidden;
+        border: 3px solid #555;
+        border-radius: 8px;
+        user-select: none;
+    }
+</style>
+
+@code {
+    // ── Parameters ────────────────────────────────────────────────────────────
+
+    [Parameter, EditorRequired]
+    public required EventCallback<int> OnScoreSubmitted { get; set; }
+
+    [Parameter, EditorRequired]
+    public required EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public int ExpectedPlayerCount { get; set; }
+
+    [Parameter]
+    public Dictionary<string, MinigamePlayerResult> ReceivedScores { get; set; } = new();
+
+    // ── Game constants ────────────────────────────────────────────────────────
+
+    private const double Gravity               = 1.2;
+    private const double FlapStrength          = -10.0;
+    private const double PipeSpeed             = 6.5;
+    private const int    PipeWidth             = 55;
+    private const double GapHeight             = 135;
+    private const int    SpawnEvery            = 50;
+    private const int    GroundY               = 465;
+    private const int    GameSeconds           = 20;
+    private const int    TickMs                = 40;
+    private const int    TicksPerSec           = 1000 / TickMs;
+    private const int    ScoreboardDelaySecs   = 3;
+
+    // Speed and gravity scale up linearly as seconds elapse
+    private double CurrentPipeSpeed => PipeSpeed + (GameSeconds - _timeLeft) * 0.7;
+    private double CurrentGravity   => Gravity   + (GameSeconds - _timeLeft) * 0.08;
+
+    // ── Game state ────────────────────────────────────────────────────────────
+
+    private enum GameState { Countdown, Playing, Dead, Waiting }
+
+    private class Pipe
+    {
+        public double X      { get; set; }
+        public double GapTop { get; init; }
+        public bool   Scored { get; set; }
+    }
+
+    private GameState  _state             = GameState.Countdown;
+    private double     _birdY             = 220;
+    private double     _birdVelocity      = 0;
+    private int        _score             = 0;
+    private int        _timeLeft          = GameSeconds;
+    private int        _tickCount         = 0;
+    private bool       _hitObstacle       = false;
+    private int        _countdownValue    = 3;
+    private List<Pipe> _pipes             = [];
+    private bool       _scoreboardVisible = false;
+    private DateTime?  _showScoreboardAt  = null;
+
+    // ── Infrastructure ────────────────────────────────────────────────────────
+
+    private ElementReference        _container;
+    private PeriodicTimer?          _gameTimer;
+    private Task?                   _gameLoopTask;
+    private CancellationTokenSource _cts = new();
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _container.FocusAsync();
+            _gameLoopTask = RunCountdownThenGame();
+        }
+    }
+
+    protected override Task OnParametersSetAsync()
+    {
+        // Called whenever ReceivedScores updates — check if scoreboard should show
+        if (_state == GameState.Waiting && !_scoreboardVisible)
+        {
+            bool allIn    = ReceivedScores.Count >= ExpectedPlayerCount;
+            bool timedOut = _showScoreboardAt.HasValue && DateTime.UtcNow >= _showScoreboardAt;
+            if (allIn || timedOut)
+                _scoreboardVisible = true;
+        }
+        return Task.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        _gameTimer?.Dispose();
+        if (_gameLoopTask is not null)
+        {
+            try { await _gameLoopTask; } catch { }
+        }
+        _cts.Dispose();
+    }
+
+    // ── Countdown + game orchestration ────────────────────────────────────────
+
+    private async Task RunCountdownThenGame()
+    {
+        for (int i = 3; i >= 1; i--)
+        {
+            if (_cts.IsCancellationRequested) return;
+            _countdownValue = i;
+            await InvokeAsync(StateHasChanged);
+            await Task.Delay(900, _cts.Token).ConfigureAwait(false);
+        }
+
+        if (_cts.IsCancellationRequested) return;
+        _countdownValue = 0;
+        await InvokeAsync(StateHasChanged);
+        await Task.Delay(700, _cts.Token).ConfigureAwait(false);
+
+        if (_cts.IsCancellationRequested) return;
+
+        InitGame();
+        _state = GameState.Playing;
+        await InvokeAsync(StateHasChanged);
+        await _container.FocusAsync();
+
+        await RunGameLoop();
+    }
+
+    private void InitGame()
+    {
+        _birdY        = 220;
+        _birdVelocity = 0;
+        _score        = 0;
+        _timeLeft     = GameSeconds;
+        _tickCount    = 0;
+        _hitObstacle  = false;
+        _pipes        = [];
+    }
+
+    private async Task RunGameLoop()
+    {
+        _gameTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(TickMs));
+
+        try
+        {
+            while (await _gameTimer.WaitForNextTickAsync(_cts.Token))
+            {
+                Tick();
+                await InvokeAsync(StateHasChanged);
+                if (_state != GameState.Playing) break;
+            }
+        }
+        catch (OperationCanceledException) { return; }
+
+        _gameTimer.Dispose();
+        _gameTimer = null;
+
+        if (_cts.IsCancellationRequested) return;
+
+        // Submit score immediately so others receive it without waiting for the crash animation
+        await OnScoreSubmitted.InvokeAsync(_score);
+        _showScoreboardAt = DateTime.UtcNow.AddSeconds(ScoreboardDelaySecs);
+
+        // Brief pause on death so players see the crash screen before moving to Waiting
+        if (_state == GameState.Dead)
+        {
+            try { await Task.Delay(1000, _cts.Token); } catch (OperationCanceledException) { return; }
+        }
+
+        if (_cts.IsCancellationRequested) return;
+
+        _state = GameState.Waiting;
+        await InvokeAsync(StateHasChanged);
+
+        // Poll so the scoreboard appears even if no further OnParametersSet calls arrive
+        await WaitForScoreboard();
+    }
+
+    private async Task WaitForScoreboard()
+    {
+        using var pollTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(500));
+        try
+        {
+            while (await pollTimer.WaitForNextTickAsync(_cts.Token))
+            {
+                if (_scoreboardVisible) break;
+
+                bool allIn    = ReceivedScores.Count >= ExpectedPlayerCount;
+                bool timedOut = _showScoreboardAt.HasValue && DateTime.UtcNow >= _showScoreboardAt;
+
+                if (allIn || timedOut)
+                {
+                    _scoreboardVisible = true;
+                    await InvokeAsync(StateHasChanged);
+                    break;
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    // ── Game tick ─────────────────────────────────────────────────────────────
+
+    private void Tick()
+    {
+        _tickCount++;
+
+        if (_tickCount % TicksPerSec == 0)
+        {
+            _timeLeft--;
+            if (_timeLeft <= 0)
+            {
+                _hitObstacle = false;
+                _state = GameState.Dead;
+                return;
+            }
+        }
+
+        _birdVelocity += CurrentGravity;
+        _birdY        += _birdVelocity;
+
+        if (_birdY + 28 >= GroundY || _birdY <= 0)
+        {
+            _birdY       = Math.Clamp(_birdY, 0, GroundY - 28);
+            _hitObstacle = true;
+            _state       = GameState.Dead;
+            return;
+        }
+
+        foreach (var pipe in _pipes)
+        {
+            pipe.X -= CurrentPipeSpeed;
+
+            if (CollidesWithPipe(pipe))
+            {
+                _hitObstacle = true;
+                _state       = GameState.Dead;
+                return;
+            }
+
+            if (!pipe.Scored && pipe.X + PipeWidth < 80)
+            {
+                pipe.Scored = true;
+                _score++;
+            }
+        }
+
+        _pipes.RemoveAll(p => p.X + PipeWidth < -10);
+
+        if (_tickCount % SpawnEvery == 0)
+        {
+            var gapTop = Random.Shared.Next(60, (int)(GroundY - GapHeight - 60));
+            _pipes.Add(new Pipe { X = 415, GapTop = gapTop });
+        }
+    }
+
+    private bool CollidesWithPipe(Pipe pipe)
+    {
+        const double birdLeft   = 84;
+        const double birdRight  = 104;
+        const double birdTop    = 4;
+        const double birdBottom = 24;
+
+        bool horizontalOverlap = birdRight > pipe.X + 3 && birdLeft < pipe.X + PipeWidth - 3;
+        if (!horizontalOverlap) return false;
+
+        bool hitsTop    = (_birdY + birdTop)    < pipe.GapTop;
+        bool hitsBottom = (_birdY + birdBottom) > pipe.GapTop + GapHeight;
+
+        return hitsTop || hitsBottom;
+    }
+
+    // ── Input ─────────────────────────────────────────────────────────────────
+
+    private void Flap()
+    {
+        if (_state == GameState.Playing)
+            _birdVelocity = FlapStrength;
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Code is "Space" or "ArrowUp")
+            Flap();
+    }
+
+    private void Close() => OnClose.InvokeAsync();
+}

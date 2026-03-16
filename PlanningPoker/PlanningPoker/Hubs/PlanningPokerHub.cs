@@ -28,7 +28,6 @@ public class PlanningPokerHub : Hub
 
             Clients.Caller.SendAsync(HubMessages.LoginFailed, errorMessage);
 
-            // Reject the connection
             Context.Abort();
             return Task.CompletedTask;
         }
@@ -97,6 +96,11 @@ public class PlanningPokerHub : Hub
     public async Task ResetEstimates(string roomId)
     {
         await Clients.Group(roomId).SendAsync(HubMessages.ResetEstimates);
+    }
+
+    public async Task SubmitGameScore(string roomId, int score)
+    {
+        await Clients.Group(roomId).SendAsync(HubMessages.PlayerScored, GetUserId(), GetUserName(), score);
     }
 
     private string GetUserId()
