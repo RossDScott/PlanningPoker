@@ -137,10 +137,7 @@
 
         var storedEstimate = await JS.InvokeAsync<string?>("sessionStorage.getItem", StorageKeys.CurrentEstimate);
         if (!string.IsNullOrEmpty(storedEstimate))
-        {
             currentEstimate = storedEstimate;
-            await HubConnection.SendAsync(HubMessages.SubmitEstimate, currentRoom.Id, storedEstimate);
-        }
     }
 
     public async Task ExitRoom()
