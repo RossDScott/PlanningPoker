@@ -17,7 +17,7 @@
         {
             <div class="mg-canvas" @onclick="Flap" style="cursor:pointer">
 
-                <!-- Sky gradient background stripes (decorative) -->
+                <!-- Background -->
                 <div style="position:absolute;inset:0;background:linear-gradient(180deg,#87CEEB 0%,#B0E2FF 60%,#c8f0a0 100%)"></div>
 
                 <!-- Timer -->
@@ -78,8 +78,6 @@
                             <MudText Typo="Typo.h5" Style="color:white" Class="mt-1">Time's up!</MudText>
                         }
                         <MudText Typo="Typo.h4" Style="color:#FFD700" Class="mt-2">Score: @_score</MudText>
-                        <MudProgressCircular Indeterminate="true" Style="color:white" Class="mt-4" />
-                        <MudText Style="color:#ccc" Class="mt-2">Waiting for others...</MudText>
                     </div>
                 }
             </div>
@@ -93,12 +91,37 @@
         }
         else if (_state == GameState.Waiting)
         {
-            <div class="mg-canvas" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
-                <div style="font-size:3rem">🎉</div>
-                <MudText Typo="Typo.h4" Style="color:#FFD700" Class="mt-2">Score: @_score</MudText>
-                <MudProgressCircular Indeterminate="true" Style="color:white" Class="mt-5" />
-                <MudText Style="color:#ccc" Class="mt-3">Waiting for other players...</MudText>
-            </div>
+            @if (_scoreboardVisible)
+            {
+                var sorted = ReceivedScores.Values.OrderByDescending(x => x.Score).ToList();
+                var winner = sorted.FirstOrDefault();
+                <div class="mg-canvas" style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                                              background:linear-gradient(135deg,#1a1a2e,#16213e)">
+                    <div style="font-size:3rem">🏆</div>
+                    <MudText Typo="Typo.h4" Style="color:#FFD700" Class="mt-1">@winner?.Name wins!</MudText>
+                    <MudDivider Style="width:80%;border-color:#555" Class="my-3" />
+                    @foreach (var r in sorted)
+                    {
+                        <MudText Typo="Typo.h6" Style="color:white">
+                            @r.Name — @r.Score pipe@(r.Score == 1 ? "" : "s")
+                        </MudText>
+                    }
+                    <MudButton Variant="Variant.Outlined" Style="color:white;border-color:#555" Class="mt-5" OnClick="Close">
+                        Close
+                    </MudButton>
+                </div>
+            }
+            else
+            {
+                <div class="mg-canvas" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+                    <div style="font-size:3rem">🎉</div>
+                    <MudText Typo="Typo.h4" Style="color:#FFD700" Class="mt-2">Score: @_score</MudText>
+                    <MudProgressCircular Indeterminate="true" Style="color:white" Class="mt-5" />
+                    <MudText Style="color:#ccc" Class="mt-3">
+                        Waiting for other players... (@ReceivedScores.Count / @ExpectedPlayerCount)
+                    </MudText>
+                </div>
+            }
         }
     </div>
 </div>
@@ -138,19 +161,28 @@
     [Parameter, EditorRequired]
     public required EventCallback<int> OnScoreSubmitted { get; set; }
 
+    [Parameter, EditorRequired]
+    public required EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public int ExpectedPlayerCount { get; set; }
+
+    [Parameter]
+    public Dictionary<string, MinigamePlayerResult> ReceivedScores { get; set; } = new();
+
     // ── Game constants ────────────────────────────────────────────────────────
 
-    private const double Gravity       = 0.7;
-    private const double FlapStrength  = -10.0;
-    private const double PipeSpeed     = 3.5;
-    private const int    PipeWidth     = 55;
-    private const double GapHeight     = 145;
-    private const int    SpawnEvery    = 85;   // ticks between new pipes
-    private const int    CanvasHeight  = 500;
-    private const int    GroundY       = 465;  // where the ground begins
-    private const int    GameSeconds   = 30;
-    private const int    TickMs        = 40;   // ~25 fps
-    private const int    TicksPerSec   = 1000 / TickMs;
+    private const double Gravity               = 0.7;
+    private const double FlapStrength          = -10.0;
+    private const double PipeSpeed             = 3.5;
+    private const int    PipeWidth             = 55;
+    private const double GapHeight             = 145;
+    private const int    SpawnEvery            = 85;
+    private const int    GroundY               = 465;
+    private const int    GameSeconds           = 30;
+    private const int    TickMs                = 40;
+    private const int    TicksPerSec           = 1000 / TickMs;
+    private const int    ScoreboardDelaySecs   = 3;
 
     // ── Game state ────────────────────────────────────────────────────────────
 
@@ -163,21 +195,23 @@
         public bool   Scored { get; set; }
     }
 
-    private GameState _state        = GameState.Countdown;
-    private double    _birdY        = 220;
-    private double    _birdVelocity = 0;
-    private int       _score        = 0;
-    private int       _timeLeft     = GameSeconds;
-    private int       _tickCount    = 0;
-    private bool      _hitObstacle  = false;
-    private int       _countdownValue = 3;
-    private List<Pipe> _pipes       = [];
+    private GameState  _state             = GameState.Countdown;
+    private double     _birdY             = 220;
+    private double     _birdVelocity      = 0;
+    private int        _score             = 0;
+    private int        _timeLeft          = GameSeconds;
+    private int        _tickCount         = 0;
+    private bool       _hitObstacle       = false;
+    private int        _countdownValue    = 3;
+    private List<Pipe> _pipes             = [];
+    private bool       _scoreboardVisible = false;
+    private DateTime?  _showScoreboardAt  = null;
 
     // ── Infrastructure ────────────────────────────────────────────────────────
 
-    private ElementReference _container;
-    private PeriodicTimer?   _gameTimer;
-    private Task?            _gameLoopTask;
+    private ElementReference        _container;
+    private PeriodicTimer?          _gameTimer;
+    private Task?                   _gameLoopTask;
     private CancellationTokenSource _cts = new();
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -189,6 +223,19 @@
             await _container.FocusAsync();
             _gameLoopTask = RunCountdownThenGame();
         }
+    }
+
+    protected override Task OnParametersSetAsync()
+    {
+        // Called whenever ReceivedScores updates — check if scoreboard should show
+        if (_state == GameState.Waiting && !_scoreboardVisible)
+        {
+            bool allIn    = ReceivedScores.Count >= ExpectedPlayerCount;
+            bool timedOut = _showScoreboardAt.HasValue && DateTime.UtcNow >= _showScoreboardAt;
+            if (allIn || timedOut)
+                _scoreboardVisible = true;
+        }
+        return Task.CompletedTask;
     }
 
     public async ValueTask DisposeAsync()
@@ -206,7 +253,6 @@
 
     private async Task RunCountdownThenGame()
     {
-        // Countdown: 3, 2, 1, GO!
         for (int i = 3; i >= 1; i--)
         {
             if (_cts.IsCancellationRequested) return;
@@ -222,7 +268,6 @@
 
         if (_cts.IsCancellationRequested) return;
 
-        // Initialise and start game
         InitGame();
         _state = GameState.Playing;
         await InvokeAsync(StateHasChanged);
@@ -262,7 +307,7 @@
 
         if (_cts.IsCancellationRequested) return;
 
-        // If the bird died, pause briefly so players can see the crash
+        // Brief pause on death so players see the crash screen
         if (_state == GameState.Dead)
         {
             try { await Task.Delay(1600, _cts.Token); } catch (OperationCanceledException) { return; }
@@ -270,9 +315,37 @@
 
         if (_cts.IsCancellationRequested) return;
 
+        // Submit score, start 3s fallback timer, enter Waiting state
+        await OnScoreSubmitted.InvokeAsync(_score);
+        _showScoreboardAt = DateTime.UtcNow.AddSeconds(ScoreboardDelaySecs);
         _state = GameState.Waiting;
         await InvokeAsync(StateHasChanged);
-        await OnScoreSubmitted.InvokeAsync(_score);
+
+        // Poll so the scoreboard appears even if no further OnParametersSet calls arrive
+        await WaitForScoreboard();
+    }
+
+    private async Task WaitForScoreboard()
+    {
+        using var pollTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(500));
+        try
+        {
+            while (await pollTimer.WaitForNextTickAsync(_cts.Token))
+            {
+                if (_scoreboardVisible) break;
+
+                bool allIn    = ReceivedScores.Count >= ExpectedPlayerCount;
+                bool timedOut = _showScoreboardAt.HasValue && DateTime.UtcNow >= _showScoreboardAt;
+
+                if (allIn || timedOut)
+                {
+                    _scoreboardVisible = true;
+                    await InvokeAsync(StateHasChanged);
+                    break;
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
     }
 
     // ── Game tick ─────────────────────────────────────────────────────────────
@@ -281,7 +354,6 @@
     {
         _tickCount++;
 
-        // Countdown timer (every TicksPerSec ticks = 1 second)
         if (_tickCount % TicksPerSec == 0)
         {
             _timeLeft--;
@@ -293,11 +365,9 @@
             }
         }
 
-        // Physics
         _birdVelocity += Gravity;
         _birdY        += _birdVelocity;
 
-        // Floor / ceiling collision
         if (_birdY + 28 >= GroundY || _birdY <= 0)
         {
             _birdY       = Math.Clamp(_birdY, 0, GroundY - 28);
@@ -306,7 +376,6 @@
             return;
         }
 
-        // Move pipes and check collisions
         foreach (var pipe in _pipes)
         {
             pipe.X -= PipeSpeed;
@@ -318,7 +387,6 @@
                 return;
             }
 
-            // Score when the pipe's right edge passes the bird
             if (!pipe.Scored && pipe.X + PipeWidth < 80)
             {
                 pipe.Scored = true;
@@ -326,10 +394,8 @@
             }
         }
 
-        // Remove off-screen pipes
         _pipes.RemoveAll(p => p.X + PipeWidth < -10);
 
-        // Spawn new pipe
         if (_tickCount % SpawnEvery == 0)
         {
             var gapTop = Random.Shared.Next(60, (int)(GroundY - GapHeight - 60));
@@ -339,11 +405,10 @@
 
     private bool CollidesWithPipe(Pipe pipe)
     {
-        // Slightly inset hitbox for fairness
         const double birdLeft   = 84;
         const double birdRight  = 104;
-        const double birdTop    = 4;   // offset from _birdY
-        const double birdBottom = 24;  // offset from _birdY
+        const double birdTop    = 4;
+        const double birdBottom = 24;
 
         bool horizontalOverlap = birdRight > pipe.X + 3 && birdLeft < pipe.X + PipeWidth - 3;
         if (!horizontalOverlap) return false;
@@ -367,4 +432,6 @@
         if (e.Code is "Space" or "ArrowUp")
             Flap();
     }
+
+    private void Close() => OnClose.InvokeAsync();
 }

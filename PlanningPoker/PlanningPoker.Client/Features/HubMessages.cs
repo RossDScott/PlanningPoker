@@ -12,8 +12,7 @@ public static class HubMessages
     public const string ResetEstimates           = "ResetEstimates";
 
     // Mini-game (Server → Client)
-    public const string StartMinigame            = "StartMinigame";
-    public const string MinigameResults          = "MinigameResults";
+    public const string PlayerScored             = "PlayerScored";
 
     // Mini-game (Client → Server)
     public const string SubmitGameScore          = "SubmitGameScore";
