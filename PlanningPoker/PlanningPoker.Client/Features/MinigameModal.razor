@@ -172,14 +172,14 @@
 
     // ── Game constants ────────────────────────────────────────────────────────
 
-    private const double Gravity               = 0.7;
+    private const double Gravity               = 0.9;
     private const double FlapStrength          = -10.0;
-    private const double PipeSpeed             = 3.5;
+    private const double PipeSpeed             = 5.0;
     private const int    PipeWidth             = 55;
     private const double GapHeight             = 145;
-    private const int    SpawnEvery            = 85;
+    private const int    SpawnEvery            = 65;
     private const int    GroundY               = 465;
-    private const int    GameSeconds           = 30;
+    private const int    GameSeconds           = 15;
     private const int    TickMs                = 40;
     private const int    TicksPerSec           = 1000 / TickMs;
     private const int    ScoreboardDelaySecs   = 3;
@@ -307,17 +307,18 @@
 
         if (_cts.IsCancellationRequested) return;
 
-        // Brief pause on death so players see the crash screen
+        // Submit score immediately so others receive it without waiting for the crash animation
+        await OnScoreSubmitted.InvokeAsync(_score);
+        _showScoreboardAt = DateTime.UtcNow.AddSeconds(ScoreboardDelaySecs);
+
+        // Brief pause on death so players see the crash screen before moving to Waiting
         if (_state == GameState.Dead)
         {
-            try { await Task.Delay(1600, _cts.Token); } catch (OperationCanceledException) { return; }
+            try { await Task.Delay(1000, _cts.Token); } catch (OperationCanceledException) { return; }
         }
 
         if (_cts.IsCancellationRequested) return;
 
-        // Submit score, start 3s fallback timer, enter Waiting state
-        await OnScoreSubmitted.InvokeAsync(_score);
-        _showScoreboardAt = DateTime.UtcNow.AddSeconds(ScoreboardDelaySecs);
         _state = GameState.Waiting;
         await InvokeAsync(StateHasChanged);
 
