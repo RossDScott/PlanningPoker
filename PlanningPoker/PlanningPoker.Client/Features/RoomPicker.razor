@@ -158,7 +158,19 @@
         rooms = (await LocalStorage.GetItemAsync<List<Room>>(StorageKeys.Rooms)) ?? [];
 
         if (rooms.Count == 1)
+        {
             await SelectRoom(rooms[0]);
+        }
+        else if (rooms.Count > 1)
+        {
+            var lastRoomId = await LocalStorage.GetItemAsync<string>(StorageKeys.LastRoom);
+            if (lastRoomId != null)
+            {
+                var lastRoom = rooms.FirstOrDefault(r => r.Id == lastRoomId);
+                if (lastRoom != null)
+                    await SelectRoom(lastRoom);
+            }
+        }
     }
 
     private async Task ChangeRoom()
@@ -218,6 +230,7 @@
         currentRoom = room;
         newRoom = null;
         currentStatus = Status.InARoom;
+        await LocalStorage.SetItemAsync(StorageKeys.LastRoom, room.Id);
         await OnRoomSelection.InvokeAsync(room);
     }
 
@@ -225,6 +238,10 @@
     {
         rooms.Remove(room);
         await LocalStorage.SetItemAsync(StorageKeys.Rooms, rooms);
+
+        var lastRoomId = await LocalStorage.GetItemAsync<string>(StorageKeys.LastRoom);
+        if (lastRoomId == room.Id)
+            await LocalStorage.RemoveItemAsync(StorageKeys.LastRoom);
     }
 
     private async Task CopyRoomId()
