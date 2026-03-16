@@ -58,7 +58,7 @@
 
                 <!-- Bird -->
                 <div style="position:absolute;left:80px;top:@((int)_birdY)px;font-size:26px;z-index:8;
-                            transform:rotate(@((int)Math.Clamp(_birdVelocity * 4, -45, 45))deg);
+                            transform:scaleX(-1) rotate(@((int)Math.Clamp(_birdVelocity * 4, -45, 45))deg);
                             transition:transform 0.05s linear;
                             filter:@(_state == GameState.Dead ? "grayscale(1)" : "none")">🐦</div>
 
@@ -172,12 +172,12 @@
 
     // ── Game constants ────────────────────────────────────────────────────────
 
-    private const double Gravity               = 1.0;
+    private const double Gravity               = 1.2;
     private const double FlapStrength          = -10.0;
-    private const double PipeSpeed             = 5.5;
+    private const double PipeSpeed             = 6.5;
     private const int    PipeWidth             = 55;
     private const double GapHeight             = 145;
-    private const int    SpawnEvery            = 60;
+    private const int    SpawnEvery            = 50;
     private const int    GroundY               = 465;
     private const int    GameSeconds           = 20;
     private const int    TickMs                = 40;
